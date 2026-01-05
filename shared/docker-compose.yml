@@ -1,0 +1,46 @@
+services:
+  # --- NGINX GATEWAY & SSL ---
+  nginx-gateway:
+    image: nginx:latest
+    container_name: nginx-gateway
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../html:/var/www/html:ro
+      - /mnt/data/minio/data:/var/www/video:ro
+      - ../nginx-gateway/certbot/www:/var/www/certbot:ro
+      - ../nginx-gateway/certbot/conf:/etc/letsencrypt:ro
+    networks:
+      - octane-net
+    depends_on:
+      - dozzle
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 4G
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - ../nginx-gateway/certbot/www:/var/www/certbot:rw
+      - ../nginx-gateway/certbot/conf:/etc/letsencrypt:rw
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: always
+    networks:
+      - octane-net
+
+networks:
+  octane-net:
+    name: octane-net
+    driver: bridge

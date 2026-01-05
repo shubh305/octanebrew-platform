@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCTANEBREW // LIVE</title>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <style>
+        :root { --bg: #0a0a0a; --accent: #e0e0e0; --dim: #444; }
+        body { background: var(--bg); color: var(--accent); font-family: 'Courier New', Courier, monospace; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        header { padding: 4rem 2rem; text-align: center; letter-spacing: 0.5rem; border-bottom: 1px solid var(--dim); width: 80%; }
+        .container { max-width: 900px; width: 90%; margin: 2rem auto; }
+        .video-wrapper { border: 1px solid var(--dim); background: #000; margin-bottom: 2rem; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 2rem; }
+        .card { border: 1px solid var(--dim); padding: 1.5rem; text-align: center; text-decoration: none; color: var(--accent); transition: all 0.3s ease; font-size: 0.8rem; text-transform: uppercase; }
+        .card:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        .status { font-size: 0.7rem; color: #555; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>OCTANEBREW</h1>
+    <p style="font-size: 0.7rem; color: #666;">DISTRIBUTED STREAMING</p>
+</header>
+
+<div class="container">
+    <div class="video-wrapper">
+        <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" data-setup='{}'>
+            <source src="https://octanebrew.dev/video/live/teststream.m3u8" type="application/x-mpegURL">
+        </video>
+    </div>
+
+    <div class="dashboard">
+        <a href="https://grafana.octanebrew.dev" class="card">Analytics</a>
+        <a href="https://kafka.octanebrew.dev" class="card">Messages</a>
+        <a href="https://kibana.octanebrew.dev" class="card">Elasticsearch</a>
+        <a href="https://stats.octanebrew.dev" class="card">RTMP Stats</a>
+    </div>
+
+    <div class="status">SYSTEMS OPERATIONAL // 2026.01.23</div>
+</div>
+
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+</body>
+</html>
