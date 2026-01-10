@@ -31,6 +31,39 @@ services:
       - ../nginx-gateway/certbot/conf:/etc/letsencrypt:rw
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
+  # --- STREAMING ENGINE ---
+  rtmp-ingest:
+    image: tiangolo/nginx-rtmp:latest
+    container_name: live-ingest
+    restart: always
+    ports:
+      - "1935:1935" # Standard RTMP Port (Mapped 1:1)
+    volumes:
+      - /mnt/data/minio/data:/minio_data:rw
+      - ../services/rtmp.conf:/etc/nginx/nginx.conf:ro
+      - ../services/stat.xsl:/usr/share/nginx/html/stat.xsl:ro
+    networks:
+      - octane-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  ffmpeg:
+    image: linuxserver/ffmpeg:latest
+    container_name: ffmpeg-worker
+    user: "1001:1001"
+    volumes:
+      - /mnt/data/minio/data:/minio_data:rw
+    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 12G
+
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
