@@ -139,6 +139,50 @@ services:
     networks:
       - octane-net
 
+  # --- DATA STORES ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION}
+    container_name: elasticsearch
+    environment:
+      - node.name=es01
+      - xpack.security.enabled=true
+      - xpack.security.authc.api_key.enabled=true
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+    volumes:
+      - ${ELASTIC_DATA_DIR}:/usr/share/elasticsearch/data
+    networks:
+      - octane-net
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS}
+    ports:
+      - "27017:27017" 
+    volumes:
+      - ${MONGO_DATA_DIR}:/data/db
+    restart: always
+    networks:
+      - octane-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ${MINIO_DATA_DIR}:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - octane-net
+
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
