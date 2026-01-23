@@ -5,42 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OCTANEBREW // LIVE</title>
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <style>
-        :root { --bg: #0a0a0a; --accent: #e0e0e0; --dim: #444; }
-        body { background: var(--bg); color: var(--accent); font-family: 'Courier New', Courier, monospace; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        header { padding: 4rem 2rem; text-align: center; letter-spacing: 0.5rem; border-bottom: 1px solid var(--dim); width: 80%; }
-        .container { max-width: 900px; width: 90%; margin: 2rem auto; }
-        .video-wrapper { border: 1px solid var(--dim); background: #000; margin-bottom: 2rem; }
-        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 2rem; }
-        .card { border: 1px solid var(--dim); padding: 1.5rem; text-align: center; text-decoration: none; color: var(--accent); transition: all 0.3s ease; font-size: 0.8rem; text-transform: uppercase; }
-        .card:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-        .status { font-size: 0.7rem; color: #555; margin-top: 2rem; }
-    </style>
+    <link href="style.css" rel="stylesheet" />
 </head>
 <body>
 
 <header>
     <h1>OCTANEBREW</h1>
-    <p style="font-size: 0.7rem; color: #666;">DISTRIBUTED STREAMING</p>
+    <div class="subtitle">PLATFORM // <span class="blink">ONLINE</span></div>
 </header>
 
 <div class="container">
     <div class="video-wrapper">
-        <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" data-setup='{}'>
-            <source src="https://octanebrew.dev/video/live/teststream.m3u8" type="application/x-mpegURL">
+        <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" poster="offline_placeholder_dark.png" data-setup='{}'>
+            <source src="" type="application/x-mpegURL">
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+            </p>
         </video>
     </div>
 
-    <div class="dashboard">
-        <a href="https://grafana.octanebrew.dev" class="card">Analytics</a>
-        <a href="https://kafka.octanebrew.dev" class="card">Messages</a>
-        <a href="https://kibana.octanebrew.dev" class="card">Elasticsearch</a>
-        <a href="https://stats.octanebrew.dev" class="card">RTMP Stats</a>
+    <!-- Terminal Controls -->
+    <div class="control-panel">
+        <span class="prompt">$ stream --connect</span>
+        <input type="text" id="stream-key-input" placeholder="stream_key" autocomplete="off">
+        <button onclick="loadStream()" class="btn">EXECUTE</button>
     </div>
 
-    <div class="status">SYSTEMS OPERATIONAL // 2026.01.23</div>
+    <!-- Infrastructure Grid -->
+    <div class="section-title">Infrastructure Modules</div>
+    <div class="dashboard">
+        <a href="https://grafana.octanebrew.dev" class="card" target="_blank">
+            <span class="card-title">Grafana</span>
+            <span class="card-desc">System Observability & Metrics</span>
+        </a>
+        <a href="https://kafka.octanebrew.dev" class="card" target="_blank">
+            <span class="card-title">Kafka HQ</span>
+            <span class="card-desc">Event Stream Inspection</span>
+        </a>
+        <a href="https://kibana.octanebrew.dev" class="card" target="_blank">
+            <span class="card-title">Kibana</span>
+            <span class="card-desc">Log Aggregation & Search</span>
+        </a>
+        <a href="https://stats.octanebrew.dev" class="card" target="_blank">
+            <span class="card-title">RTMP Stats</span>
+            <span class="card-desc">Ingest Link Diagnostics</span>
+        </a>
+    </div>
+
+    <!-- Footer Specs -->
+    <div class="specs">
+        <div id="spec-status">STATUS: <span style="color: #888">STANDBY</span></div>
+        <div id="spec-codec">CODEC: NULL</div>
+        <div id="spec-uplink">UPLINK: <span style="color: green">SECURE</span></div>
+        <div id="spec-time">T-MINUS: 00:00:00</div>
+    </div>
 </div>
 
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
