@@ -16,7 +16,7 @@ services:
     networks:
       - octane-net
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.openstream.internal:host-gateway"
     depends_on:
       - grafana
       - kibana
@@ -50,7 +50,7 @@ services:
     networks:
       - octane-net
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.openstream.internal:host-gateway"
     deploy:
       resources:
         limits:
