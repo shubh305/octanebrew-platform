@@ -8,11 +8,11 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ../nginx-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../html:/var/www/html:ro
+      - ./nginx-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./html:/var/www/html:ro
       - /mnt/data/minio/data:/var/www/video:ro
-      - ../nginx-gateway/certbot/www:/var/www/certbot:ro
-      - ../nginx-gateway/certbot/conf:/etc/letsencrypt:ro
+      - ./nginx-gateway/certbot/www:/var/www/certbot:ro
+      - ./nginx-gateway/certbot/conf:/etc/letsencrypt:ro
     networks:
       - octane-net
     depends_on:
@@ -30,8 +30,8 @@ services:
     image: certbot/certbot:latest
     container_name: certbot
     volumes:
-      - ../nginx-gateway/certbot/www:/var/www/certbot:rw
-      - ../nginx-gateway/certbot/conf:/etc/letsencrypt:rw
+      - ./nginx-gateway/certbot/www:/var/www/certbot:rw
+      - ./nginx-gateway/certbot/conf:/etc/letsencrypt:rw
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   # --- STREAMING ENGINE ---
@@ -43,8 +43,8 @@ services:
       - "1935:1935" # Standard RTMP Port (Mapped 1:1)
     volumes:
       - /mnt/data/minio/data:/minio_data:rw
-      - ../services/rtmp.conf:/etc/nginx/nginx.conf:ro
-      - ../services/stat.xsl:/usr/share/nginx/html/stat.xsl:ro
+      - ./services/rtmp.conf:/etc/nginx/nginx.conf:ro
+      - ./services/stat.xsl:/usr/share/nginx/html/stat.xsl:ro
     networks:
       - octane-net
     deploy:

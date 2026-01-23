@@ -8,7 +8,7 @@ Centralized infrastructure for the OctaneBrew ecosystem. Hosts shared services (
 
 | Component | Path | Description |
 | :--- | :--- | :--- |
-| **Core** | `shared/` | Docker Compose source of truth & Env vars. |
+| **Core** | `./` | Docker Compose source of truth & Env vars. |
 | **Gateway** | `nginx-gateway/` | SSL termination, routing, and static assets. |
 | **Stream** | `services/` | RTMP Ingest & Stats configuration. |
 | **Web** | `html/` | Landing page entrypoint. |
@@ -16,7 +16,6 @@ Centralized infrastructure for the OctaneBrew ecosystem. Hosts shared services (
 ## DEPLOYMENT
 
 ```bash
-cd shared
 docker-compose up -d
 ```
 
