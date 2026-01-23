@@ -217,7 +217,7 @@ services:
       - octane-net
 
   dozzle:
-    image: amir20/dozzle:latestwa
+    image: amir20/dozzle:latest
     container_name: dozzle
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
