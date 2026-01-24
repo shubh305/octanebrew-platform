@@ -451,6 +451,10 @@ body.stats-page .footer {
     color: #666;
 }
 
+body.stats-page .container {
+    max-width: 1500px;
+}
+
 .server-metrics {
     width: 100%;
     max-width: 100%;
