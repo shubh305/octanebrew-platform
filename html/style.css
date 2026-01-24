@@ -138,3 +138,35 @@ h1 { margin: 0; letter-spacing: 0.8rem; font-weight: 400; font-size: 2rem; }
 }
 .blink { animation: blink 2s infinite; }
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+/* --- Video.js Overrides --- */
+.video-js.vjs-playing .vjs-big-play-button {
+    display: none !important;
+}
+
+.video-js .vjs-control-bar {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.vjs-icon-play:before, .video-js .vjs-play-control .vjs-icon-placeholder:before {
+    font-family: VideoJS;
+    font-weight: normal;
+    font-style: normal;
+    content: "\f101";
+}
+.video-js.vjs-playing .vjs-play-control .vjs-icon-placeholder:before {
+    content: "\f103";
+}
+
+.video-js .vjs-big-play-button {
+    background-color: var(--dim) !important;
+    border-color: var(--accent) !important;
+    border-radius: 0 !important; 
+    width: 2em !important;
+    height: 2em !important;
+    line-height: 2em !important;
+}
+.video-js:hover .vjs-big-play-button {
+    background-color: var(--accent) !important;
+    color: var(--bg) !important;
+}

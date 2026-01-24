@@ -1,19 +1,14 @@
 function loadStream() {
-    const key = document.getElementById('stream-key-input').value.trim();
-    if (!key) return;
+  const key = document.getElementById("stream-key-input").value.trim();
+  if (!key) return;
 
-    // Update URL without reload
-    const newUrl = new URL(window.location);
-    newUrl.searchParams.set('stream', key);
-    window.history.pushState({}, '', newUrl);
+  // Update Player
+  const player = videojs("live-player");
+  const src = `https://octanebrew.dev/video/live/${key}.m3u8`;
 
-    // Update Player
-    const player = videojs('live-player');
-    const src = `https://octanebrew.dev/video/live/${key}.m3u8`;
-    
-    console.log(`Loading stream: ${src}`);
-    player.src({ type: 'application/x-mpegURL', src: src });
-    player.play();
+  console.log(`Loading stream: ${src}`);
+  player.src({ type: "application/x-mpegURL", src: src });
+  player.play();
 }
 
 // Init from URL Param
