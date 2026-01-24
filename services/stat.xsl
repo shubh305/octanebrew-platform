@@ -1,34 +1,14 @@
 <?xml version="1.0" encoding="utf-8" ?>
-
-
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-
 
 <xsl:template match="/">
     <html>
         <head>
-            <title>RTMP Statistics</title>
-            <style>
-                body { font-family: 'Courier New', monospace; background-color: #0d0d0d; color: #e0e0e0; margin: 20px; }
-                h1 { color: #00ff00; text-transform: uppercase; font-size: 1.5em; border-bottom: 2px solid #333; padding-bottom: 10px; }
-                table { margin-top: 20px; border-collapse: collapse; width: 100%; font-size: 14px; background-color: #1a1a1a; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-                th { color: #00ff00; background-color: #262626; padding: 12px; text-align: left; text-transform: uppercase; border-bottom: 2px solid #333; }
-                td { padding: 10px; border-bottom: 1px solid #333; color: #ccc; }
-                tr:hover td { background-color: #222; }
-                a { color: #00beff; text-decoration: none; }
-                a:hover { text-decoration: underline; color: #7fe6ff; }
-                .footer { margin-top: 40px; font-size: 12px; color: #666; border-top: 1px solid #333; padding-top: 10px; }
-                b { color: #fff; }
-                i { color: #888; }
-                /* State Colors */
-                .state-publishing { color: #ff3333; font-weight: bold; }
-                .state-playing { color: #00ff00; }
-                /* Hide nested table background */
-                tr[style="display:none"] td { background-color: #111 !important; padding: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
-            </style>
+            <title>RTMP Statistics // OctaneBrew</title>
+            <link rel="stylesheet" href="/style.css"/>
         </head>
-        <body>
-            <h1>OctaneBrew Stream Stats</h1>
+        <body class="stats-page">
+            <h1>OpenStream // Signal Status</h1>
             <xsl:apply-templates select="rtmp"/>
             <div class="footer">
                 RTMP Module <xsl:value-of select="/rtmp/nginx_rtmp_version"/> | 
@@ -41,18 +21,18 @@
 </xsl:template>
 
 <xsl:template match="rtmp">
-    <table>
+    <table class="stats-table">
         <tr>
-            <th>RTMP</th>
-            <th>#clients</th>
-            <th colspan="4">Video</th>
-            <th colspan="4">Audio</th>
-            <th>In bytes</th>
-            <th>Out bytes</th>
-            <th>In bits/s</th>
-            <th>Out bits/s</th>
+            <th>Module</th>
+            <th>Clients</th>
+            <th colspan="4">Video Stream</th>
+            <th colspan="4">Audio Stream</th>
+            <th>In (Vol)</th>
+            <th>Out (Vol)</th>
+            <th>In (Bit)</th>
+            <th>Out (Bit)</th>
             <th>State</th>
-            <th>Time</th>
+            <th>Uptime</th>
         </tr>
         <tr>
             <td colspan="2">Accepted: <xsl:value-of select="naccepted"/></td>
@@ -105,8 +85,8 @@
 
 <xsl:template match="application">
     <tr>
-        <td>
-            <b><xsl:value-of select="name"/></b>
+        <td colspan="16" class="section-header">
+            <b>APP: <xsl:value-of select="name"/></b>
         </td>
     </tr>
     <xsl:apply-templates select="live"/>
@@ -116,7 +96,7 @@
 <xsl:template match="live">
     <tr>
         <td>
-            <i>live streams</i>
+            <i>LIVE</i>
         </td>
         <td align="middle">
             <xsl:value-of select="nclients"/>
@@ -128,7 +108,7 @@
 <xsl:template match="play">
     <tr>
         <td>
-            <i>vod streams</i>
+            <i>VOD</i>
         </td>
         <td align="middle">
             <xsl:value-of select="nclients"/>
@@ -193,8 +173,8 @@
         </td>
         <td>
             <xsl:call-template name="showsize">
-               <xsl:with-param name="size" select="bytes_in"/>
-           </xsl:call-template>
+                <xsl:with-param name="size" select="bytes_in"/>
+            </xsl:call-template>
         </td>
         <td>
             <xsl:call-template name="showsize">
@@ -218,7 +198,7 @@
         <td><xsl:call-template name="streamstate"/></td>
         <td>
             <xsl:call-template name="showtime">
-               <xsl:with-param name="time" select="time"/>
+                <xsl:with-param name="time" select="time"/>
             </xsl:call-template>
         </td>
     </tr>
@@ -227,12 +207,12 @@
             <xsl:value-of select="../../name"/>-<xsl:value-of select="name"/>
         </xsl:attribute>
         <td colspan="16">
-            <table>
+            <table class="stats-table">
                 <tr>
                     <th>Id</th>
                     <th>State</th>
                     <th>Address</th>
-                    <th>Flash version</th>
+                    <th>Flash Version</th>
                     <th>Page URL</th>
                     <th>SWF URL</th>
                     <th>Dropped</th>
@@ -348,18 +328,18 @@
         <td><xsl:value-of select="avsync"/></td>
         <td>
             <xsl:call-template name="showtime">
-               <xsl:with-param name="time" select="time"/>
+                <xsl:with-param name="time" select="time"/>
             </xsl:call-template>
         </td>
     </tr>
 </xsl:template>
 
 <xsl:template match="publishing">
-    publishing
+    <span class="state-publishing">PUBLISHING</span>
 </xsl:template>
 
 <xsl:template match="active">
-    active
+    <span class="state-playing">ACTIVE</span>
 </xsl:template>
 
 <xsl:template match="width">

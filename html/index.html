@@ -15,37 +15,59 @@
 </header>
 
 <div class="container">
-    <div class="video-wrapper">
-        <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" poster="offline_placeholder_dark.png" data-setup='{}'>
-            <source src="" type="application/x-mpegURL">
-            <p class="vjs-no-js">
-                To view this video please enable JavaScript, and consider upgrading to a web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-            </p>
-        </video>
+    <div class="crt-monitor">
+        <div class="monitor-casing">
+            <div class="monitor-bezel">
+                <div class="crt-screen">
+                    <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" poster="" data-setup='{}'>
+                        <p class="vjs-no-js">
+                            To view this video please enable JavaScript, and consider upgrading to a web browser that
+                            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                        </p>
+                    </video>
+                    
+                    <div id="standby-overlay">
+                        <div class="scanline"></div>
+                        <div class="glitch-wrapper">
+                            <div class="glitch" data-text="SIGNAL LOST">SIGNAL LOST</div>
+                            <div class="subtext">WAITING FOR UPLINK...</div>
+                        </div>
+                        <div class="radar"></div>
+                    </div>
+
+                    <div class="crt-glass"></div>
+                </div>
+            </div>
+            
+            <div class="monitor-controls">
+                <div class="control-group left">
+                    <div id="status-led" class="led status-red"></div>
+                </div>
+                <div class="control-group right">
+                    <div class="power-btn" onclick="togglePower()"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Terminal Controls -->
     <div class="control-panel">
         <span class="prompt">$ stream --connect</span>
-        <input type="text" id="stream-key-input" placeholder="stream_key" autocomplete="off">
+        <input type="text" id="stream-key-input" placeholder="Stream Key" autocomplete="off">
         <button onclick="loadStream()" class="btn">SUBMIT</button>
     </div>
 
-    <!-- Infrastructure Grid -->
-    <div class="section-title">Infrastructure Modules</div>
     <div class="dashboard">
         <a href="https://grafana.octanebrew.dev" class="card" target="_blank">
             <span class="card-title">Grafana</span>
-            <span class="card-desc">System Observability & Metrics</span>
+            <span class="card-desc">System Observability</span>
         </a>
         <a href="https://kafka.octanebrew.dev" class="card" target="_blank">
-            <span class="card-title">Kafka HQ</span>
+            <span class="card-title">Kafka Connect</span>
             <span class="card-desc">Event Stream Inspection</span>
         </a>
         <a href="https://kibana.octanebrew.dev" class="card" target="_blank">
             <span class="card-title">Kibana</span>
-            <span class="card-desc">Log Aggregation & Search</span>
+            <span class="card-desc">Elasticsearch</span>
         </a>
         <a href="https://stats.octanebrew.dev" class="card" target="_blank">
             <span class="card-title">RTMP Stats</span>
@@ -53,7 +75,6 @@
         </a>
     </div>
 
-    <!-- Footer Specs -->
     <div class="specs">
         <div id="spec-status">STATUS: <span style="color: #888">STANDBY</span></div>
         <div id="spec-codec">CODEC: NULL</div>
