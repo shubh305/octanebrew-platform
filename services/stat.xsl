@@ -19,8 +19,7 @@
                         <span class="card-title">System</span>
                         <span class="card-desc">
                             Nginx: <xsl:value-of select="/rtmp/nginx_version"/><br/>
-                            Module: <xsl:value-of select="/rtmp/nginx_rtmp_version"/><br/>
-                            PID: <xsl:value-of select="/rtmp/pid"/>
+                            Module: <xsl:value-of select="/rtmp/nginx_rtmp_version"/>
                         </span>
                     </div>
                     <div class="card">
@@ -57,29 +56,31 @@
 </xsl:template>
 
 <xsl:template match="rtmp">
-    <table class="stats-table">
-        <thead>
-            <tr>
-                <th>Stream</th>
-                <th>Clients</th>
-                <th>Video</th>
-                <th>Res</th>
-                <th>FPS</th>
-                <th>Audio</th>
-                <th>Freq</th>
-                <th>Chan</th>
-                <th>In</th>
-                <th>Out</th>
-                <th>BW In</th>
-                <th>BW Out</th>
-                <th>State</th>
-                <th>Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            <xsl:apply-templates select="server"/>
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>Stream</th>
+                    <th>Clients</th>
+                    <th>Video</th>
+                    <th>Res</th>
+                    <th>FPS</th>
+                    <th>Audio</th>
+                    <th>Freq</th>
+                    <th>Chan</th>
+                    <th>In</th>
+                    <th>Out</th>
+                    <th>BW In</th>
+                    <th>BW Out</th>
+                    <th>State</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <xsl:apply-templates select="server"/>
+            </tbody>
+        </table>
+    </div>
 </xsl:template>
 
 <xsl:template match="server">
