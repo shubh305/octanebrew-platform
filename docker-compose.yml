@@ -15,8 +15,8 @@ services:
       - ./nginx-gateway/certbot/conf:/etc/letsencrypt:ro
     networks:
       - octane-net
-    extra_hosts:
-      - "host.openstream.internal:host-gateway"
+    # extra_hosts:
+    #   - "host.openstream.internal:host-gateway" # LOCAL DEV
     depends_on:
       - grafana
       - kibana
@@ -49,8 +49,8 @@ services:
       - ./services/stat.xsl:/usr/share/nginx/html/stat.xsl:ro
     networks:
       - octane-net
-    extra_hosts:
-      - "host.openstream.internal:host-gateway"
+    # extra_hosts:
+    #   - "host.openstream.internal:host-gateway" # LOCAL DEV
     deploy:
       resources:
         limits:
