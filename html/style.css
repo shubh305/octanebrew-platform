@@ -376,20 +376,28 @@ h1 { margin: 0; letter-spacing: 0.9rem; font-weight: 400; font-size: 2rem; }
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #300; /* Default Off/Dim Red */
-    box-shadow: inset 1px 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(50,0,0,0.5);
-    border: 1px solid #000;
+    background: #2a0000;
+    box-shadow: inset 1px 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,0.5);
+    border: 1px solid #111;
     transition: all 0.3s ease;
 }
 
 .led.status-red {
-    background: #ff0000;
-    box-shadow: 0 0 8px #ff0000, inset 1px 1px 3px rgba(255, 255, 255, 0.2);
+    background: #cc0000;
+    box-shadow: 0 0 4px #880000, inset 1px 1px 2px rgba(255, 255, 255, 0.1);
+    opacity: 0.8;
 }
 
 .led.status-green {
-    background: #00ff41;
-    box-shadow: 0 0 10px #00ff41, inset 1px 1px 3px rgba(255, 255, 255, 0.4);
+    background: #00cc33;
+    box-shadow: 0 0 5px #00661a, inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+    opacity: 0.8;
+}
+
+.led.status-yellow {
+    background: #ccaa00;
+    box-shadow: 0 0 4px #886600, inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+    opacity: 0.8;
 }
 
 .power-btn {
@@ -443,6 +451,12 @@ body.stats-page .footer {
     color: #666;
 }
 
+.server-metrics {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 2rem auto;
+}
+
 .stats-table {
     border-collapse: collapse;
     width: 100%;
@@ -451,6 +465,7 @@ body.stats-page .footer {
     background-color: var(--terminal-bg);
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
     border: 1px solid var(--border);
+    margin-top: 2rem;
     margin-bottom: 2rem;
 }
 .stats-table th {

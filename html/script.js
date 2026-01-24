@@ -30,8 +30,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function setLed(state) {
     if (!led) return;
-    led.classList.remove("status-red", "status-green");
+    led.classList.remove("status-red", "status-green", "status-yellow");
     if (state === "active") led.classList.add("status-green");
+    else if (state === "buffering") led.classList.add("status-yellow");
     else led.classList.add("status-red");
   }
 
@@ -62,6 +63,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   player.on("waiting", () => {
     statusEl.innerHTML = 'STATUS: <span class="blink" style="color: yellow">BUFFERING</span>';
+    setLed("buffering");
   });
 
 });
