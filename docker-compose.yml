@@ -19,6 +19,7 @@ services:
     #   - "host.openstream.internal:host-gateway" # LOCAL DEV
     extra_hosts:
       - "openstream-api:host-gateway"
+      - "openstream-web:host-gateway"
     depends_on:
       - grafana
       - kibana
@@ -53,6 +54,7 @@ services:
       - octane-net
     extra_hosts:
       - "openstream-api:host-gateway" # Map hostname to Host IP
+      - "openstream-web:host-gateway"
     deploy:
       resources:
         limits:
