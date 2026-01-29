@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package storage;
+
+service StorageService {
+  rpc UploadImage (UploadImageRequest) returns (UploadImageResponse);
+  rpc GetPresignedUrl (GetPresignedUrlRequest) returns (GetPresignedUrlResponse);
+}
+
+message UploadImageRequest {
+  string filename = 1;
+  bytes data = 2;
+  string bucket = 3;
+  string mimeType = 4;
+}
+
+message UploadImageResponse {
+  string url = 1;
+}
+
+message GetPresignedUrlRequest {
+  string bucket = 1;
+  string key = 2;
+  int32 expiry = 3;
+}
+
+message GetPresignedUrlResponse {
+  string url = 1;
+}
