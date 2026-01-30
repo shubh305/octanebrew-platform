@@ -45,7 +45,7 @@ services:
     container_name: live-ingest
     restart: always
     ports:
-      - "1935:1935" # Standard RTMP Port (Mapped 1:1)
+      - "1935:1935"
     volumes:
       - /mnt/data/minio/data:/minio_data:rw
       - ./services/rtmp.conf:/etc/nginx/nginx.conf:ro
@@ -53,7 +53,7 @@ services:
     networks:
       - octane-net
     extra_hosts:
-      - "openstream-api:host-gateway" # Map hostname to Host IP
+      - "openstream-api:host-gateway"
       - "openstream-web:host-gateway"
     deploy:
       resources:
@@ -305,6 +305,22 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    networks:
+      - octane-net
+
+  # --- STORAGE SERVICE ---
+  storage-service:
+    build: ./services/storage-service
+    container_name: storage-service
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: ${MINIO_PORT}
+      STORAGE_PUBLIC_HOST: ${STORAGE_PUBLIC_HOST}
+    depends_on:
+      - minio
     networks:
       - octane-net
 
