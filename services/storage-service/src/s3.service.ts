@@ -12,6 +12,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 @Injectable()
 export class S3Service {
   private s3Client: S3Client;
+  private signingClient: S3Client;
   private readonly logger = new Logger(S3Service.name);
   private readonly endpoint: string;
   private readonly region: string;
@@ -30,6 +31,26 @@ export class S3Service {
     this.s3Client = new S3Client({
       region: this.region,
       endpoint: this.endpoint,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+
+    const publicHost = this.configService.get<string>(
+      "STORAGE_PUBLIC_HOST",
+      `minio:${minioPort}`,
+    );
+    const isIp = /^[0-9]+(\.[0-9]+){3}(:[0-9]+)?$/.test(publicHost);
+    let publicEndpoint = publicHost;
+    if (!publicHost.startsWith("http")) {
+      publicEndpoint = isIp ? `http://${publicHost}` : `https://${publicHost}`;
+    }
+
+    this.signingClient = new S3Client({
+      region: this.region,
+      endpoint: publicEndpoint,
       forcePathStyle: true,
       credentials: {
         accessKeyId,
@@ -96,28 +117,11 @@ export class S3Service {
       Key: objectKey,
     });
 
-    const signedUrl = await getSignedUrl(this.s3Client, command, {
+    // Use the signing client so the signature matches the public Host header
+    const signedUrl = await getSignedUrl(this.signingClient, command, {
       expiresIn: expiry,
     });
 
-    // Replace internal MinIO host with public host
-    const minioHost = this.configService.get<string>("MINIO_ENDPOINT", "minio");
-    const minioPort = this.configService.get<string>("MINIO_PORT", "9000");
-    const internalOrigin = `http://${minioHost}:${minioPort}`;
-
-    const publicHost = this.configService.get<string>(
-      "STORAGE_PUBLIC_HOST",
-      internalOrigin,
-    );
-
-    if (publicHost === internalOrigin) {
-      return signedUrl;
-    }
-
-    const isIp = /^[0-9]+(\.[0-9]+){3}(:[0-9]+)?$/.test(publicHost);
-    const protocol = isIp ? "http" : "https";
-
-    // Replace the internal origin with the public one
-    return signedUrl.replace(internalOrigin, `${protocol}://${publicHost}`);
+    return signedUrl;
   }
 }
