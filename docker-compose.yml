@@ -65,13 +65,18 @@ services:
           memory: 4G
 
   ffmpeg:
-    image: linuxserver/ffmpeg:latest
+    build:
+      context: ./services/ffmpeg-worker
+      dockerfile: Dockerfile
     container_name: ffmpeg-worker
-    user: "1001:1001"
     volumes:
       - /mnt/data/minio/data:/minio_data:rw
-    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
-    restart: always
+      - /usr/src/app/node_modules
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - kafka
+
     deploy:
       resources:
         limits:
