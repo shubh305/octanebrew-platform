@@ -73,7 +73,9 @@ services:
       - /mnt/data/minio/data:/minio_data:rw
       - /usr/src/app/node_modules
     environment:
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKERS=kafka:9092
+    networks:
+      - octane-net
     depends_on:
       - kafka
 

@@ -19,8 +19,13 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
           options: {
             client: {
               brokers: [
-                configService.get('KAFKA_BROKER', 'broker.octanebrew.dev:9092'),
+                configService.get(
+                  'KAFKA_BROKERS',
+                  'broker.octanebrew.dev:8084',
+                ),
               ],
+              connectionTimeout: 10000,
+              requestTimeout: 30000,
             },
             consumer: {
               groupId: 'worker-producer',

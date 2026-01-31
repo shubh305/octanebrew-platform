@@ -9,7 +9,9 @@ async function bootstrap() {
       transport: Transport.KAFKA,
       options: {
         client: {
-          brokers: [process.env.KAFKA_BROKER || 'broker.octanebrew.dev:8084'],
+          brokers: [process.env.KAFKA_BROKERS || 'broker.octanebrew.dev:8084'],
+          connectionTimeout: 10000,
+          requestTimeout: 30000,
         },
         consumer: {
           groupId: 'ffmpeg-worker-consumer',
