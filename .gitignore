@@ -147,3 +147,16 @@ prd*
 
 # Media Data
 media_data/
+
+# Upcoming Services
+services/analytics
+services/ingestion
+services/intelligence
+
+# Misc
+/docs
+*workspace
+users.yml
+**/.venv/
+**/.pytest_cache
+**/__pycache__
