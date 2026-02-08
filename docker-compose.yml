@@ -73,7 +73,13 @@ services:
       - /mnt/data/minio/data:/minio_data:rw
       - /usr/src/app/node_modules
     environment:
-      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_BROKERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+      - OPENSTREAM_VOL_PATH=/minio_data
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     networks:
       - octane-net
     depends_on:
