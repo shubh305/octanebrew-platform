@@ -15,6 +15,7 @@ redis_client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_re
 
 class LookupRequest(BaseModel):
     word: str
+    reading: Optional[str] = None
 
 class Definition(BaseModel):
     definition: str
@@ -52,7 +53,11 @@ class Entry(BaseModel):
     ]
 )
 async def lookup_word(request: LookupRequest):
-    cache_key = f"dict_cache:{request.word.lower()}"
+    request.word = request.word.strip()
+    if request.reading:
+        request.reading = request.reading.strip()
+        
+    cache_key = f"dict_cache:{request.word.lower()}:{request.reading or ''}"
     
     try:
         # 1. Try to get from Cache
@@ -61,7 +66,7 @@ async def lookup_word(request: LookupRequest):
             return json.loads(cached_result)
 
         # 2. Perform Analysis
-        result = engine.analyze(request.word)
+        result = engine.analyze(request.word, request.reading)
         
         # 3. Save to Cache (1 hour expiry)
         await redis_client.setex(cache_key, 3600, json.dumps(result))

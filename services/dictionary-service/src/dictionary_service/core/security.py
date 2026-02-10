@@ -9,7 +9,6 @@ async def get_api_key(
     header_key: str = Security(api_key_header),
 ):
     if not settings.SERVICE_API_KEY:
-        # If no key is configured, allow (default state) - or enforce if you prefer
         return None
     
     if header_key == settings.SERVICE_API_KEY:
