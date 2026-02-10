@@ -157,20 +157,43 @@ class DictionaryEngine:
         analysis_word = word
         translation_to_en = None
         
-        # Only attempt translation for non-English or if language is unclear
-        if contains_japanese:
-            try:
-                logger.info("Attempting Japanese to English translation...")
+        try:
+            if contains_japanese:
+                # Strategy 1: Japanese Characters
+                logger.info("Strategy: Japanese Characters -> EN")
                 translated = self.translator.translate(word, src="ja", dest="en")
                 src_lang = "ja"
-                if translated.text and translated.text != word:
-                    translation_to_en = translated.text
-                    analysis_word = translated.text
-                    logger.info(f"Translation: {word} -> {translation_to_en}")
-            except Exception as e:
-                logger.warning(f"Japanese translation failed: {e}")
-                src_lang = "ja"
-                analysis_word = word
+            else:
+                # Strategy 2: Auto-detect for Latin/Other characters
+                logger.info("Strategy: Auto-detect -> EN")
+                translated = self.translator.translate(word, dest="en")
+                src_lang = translated.src
+                
+                # Check for suspicious detections common for Romaji (e.g., et, vi, tl)
+                suspicious_langs = ["et", "vi", "tl", "sq", "la", "it"]
+                is_identity = not translated.text or translated.text.strip().lower() == word.strip().lower()
+                
+                if is_identity and (src_lang in suspicious_langs or src_lang == "unknown"):
+                    logger.info(f"Detection suspicious ({src_lang}), trying Japanese fallback...")
+                    fb_trans = self.translator.translate(word, src="ja", dest="en")
+                    if fb_trans.text and fb_trans.text.strip().lower() != word.strip().lower():
+                        translated = fb_trans
+                        src_lang = "ja"
+
+            if translated.text and translated.text.strip().lower() != word.strip().lower():
+                translation_to_en = translated.text
+                analysis_word = translated.text
+                logger.info(f"Translation SUCCESS: {src_lang} -> {translation_to_en}")
+            else:
+                # Default to English for Latin text if no translation found
+                if not contains_japanese and src_lang != "ja":
+                    src_lang = "en"
+                logger.info(f"No translation found, using original word (src_lang={src_lang})")
+                
+        except Exception as e:
+            logger.error(f"Translation flow error: {e}")
+            if not contains_japanese:
+                src_lang = "en"
         
         logger.info(f"WordNet lookup for: {analysis_word}")
         blob_word = Word(analysis_word)
@@ -280,7 +303,8 @@ class DictionaryEngine:
         # 5. Grammar and Spell Check (LanguageTool)
         is_correct = True
         suggestions = []
-        if src_lang == "en":
+        # Run spell check if text is English or has been translated to English
+        if src_lang == "en" or (src_lang == "ja" and translation_to_en):
             try:
                 logger.info("Spell checking...")
                 matches = self.tool.check(analysis_word)
