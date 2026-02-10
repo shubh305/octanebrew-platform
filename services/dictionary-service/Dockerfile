@@ -1,4 +1,7 @@
-FROM python:3.13-slim
+FROM python:3.12-slim
+
+ENV UV_PYTHON_PREFERENCE=system
+ENV UV_PYTHON=python3.12
 
 WORKDIR /app
 
