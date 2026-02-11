@@ -47,6 +47,92 @@ class DictionaryEngine:
                 return True
         return False
 
+    def _lookup_jmdict(self, query: str, original_word: str, reading: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        try:
+            jmd_result = self.jmd.lookup(query)
+            if not jmd_result.entries:
+                return None
+                
+            logger.info(f"Found {len(jmd_result.entries)} JMDict entries for '{query}'")
+            entries = []
+            
+            for entry in jmd_result.entries:
+                # Extract readings (kana)
+                readings = [k.text for k in entry.kana_forms]
+                
+                # Extract meanings
+                meanings_list = []
+                for sense in entry.senses:
+                    # Convert glosses to string definitions
+                    glosses = [g.text for g in sense.gloss]
+                    definition_text = "; ".join(glosses)
+                    
+                    pos = "unknown"
+                    if sense.pos:
+                        pos = ", ".join([str(p) for p in sense.pos])
+                    
+                    meanings_list.append({
+                        "partOfSpeech": pos,
+                        "definitions": [{
+                            "definition": definition_text,
+                            "synonyms": [],
+                            "antonyms": [],
+                            "example": None
+                        }],
+                        "synonyms": [],
+                        "antonyms": []
+                    })
+                
+                # Determine primary phonetic (reading)
+                primary_phonetic = readings[0] if readings else None
+                
+                entries.append({
+                    "word": original_word,
+                    "phonetic": primary_phonetic,
+                    "phonetics": [{"text": r} for r in readings],
+                    "meanings": meanings_list,
+                    "metadata": {
+                        "detected_language": "ja",
+                        "translation": None,
+                        "analysis_word": original_word,
+                        "plurals": [],
+                        "is_correct": True,
+                        "suggestions": []
+                    }
+                })
+            
+            # Filtering Logic
+            if reading:
+                target_readings = {reading}
+                try:
+                    # Convert potential Romaji to Hiragana/Katakana for matching
+                    hira = jaconv.alphabet2kana(reading)
+                    if hira != reading:
+                        target_readings.add(hira)
+                    kata = jaconv.hira2kata(hira)
+                    if kata != reading:
+                        target_readings.add(kata)
+                except Exception as e:
+                    logger.warning(f"jaconv conversion failed: {e}")
+                
+                logger.info(f"Target readings for filtering: {target_readings}")
+                
+                filtered_entries = [
+                    e for e in entries 
+                    if any(p["text"] in target_readings for p in e["phonetics"]) 
+                       or (e["phonetic"] in target_readings)
+                ]
+                
+                if filtered_entries:
+                    logger.info(f"Filtered to {len(filtered_entries)} entries matching reading")
+                    return filtered_entries
+            
+            return entries
+
+        except Exception as e:
+            logger.error(f"JMDict helper lookup failed: {e}")
+            return None
+
     def analyze(self, word: str, reading: Optional[str] = None) -> List[Dict[str, Any]]:
         # Normalization
         word = word.strip()
@@ -60,96 +146,31 @@ class DictionaryEngine:
         logger.info(f"Contains Japanese characters: {contains_japanese}")
         
         # 1. Try JMDict Lookup (Japanese Dictionary)
-        # Skip JMDict if word is pure English/Latin text
+        # ----------------------------------------------------------------
         if contains_japanese:
-            try:
-                jmd_result = self.jmd.lookup(word)
-                if jmd_result.entries:
-                    logger.info(f"Found {len(jmd_result.entries)} JMDict entries for '{word}'")
-                    entries = []
-                    
-                    for entry in jmd_result.entries:
-                        # Extract readings (kana)
-                        readings = [k.text for k in entry.kana_forms]
-                        
-                        # Extract meanings
-                        meanings_list = []
-                        for sense in entry.senses:
-                            # Convert glosses to string definitions
-                            glosses = [g.text for g in sense.gloss]
-                            definition_text = "; ".join(glosses)
-                            
-                            pos = "unknown"
-                            if sense.pos:
-                                pos = ", ".join([str(p) for p in sense.pos])
-                            
-                            meanings_list.append({
-                                "partOfSpeech": pos,
-                                "definitions": [{
-                                    "definition": definition_text,
-                                    "synonyms": [],
-                                    "antonyms": [],
-                                    "example": None
-                                }],
-                                "synonyms": [],
-                                "antonyms": []
-                            })
-                        
-                        # Determine primary phonetic (reading)
-                        primary_phonetic = readings[0] if readings else None
-                        
-                        entries.append({
-                            "word": word,
-                            "phonetic": primary_phonetic,
-                            "phonetics": [{"text": r} for r in readings],
-                            "meanings": meanings_list,
-                            "metadata": {
-                                "detected_language": "ja",
-                                "translation": None,
-                                "analysis_word": word,
-                                "plurals": [],
-                                "is_correct": True,
-                                "suggestions": []
-                            }
-                        })
-                    
-                    # Filtering Logic
-                    if reading:
-                        target_readings = {reading}
-                        try:
-                            # Convert potential Romaji to Hiragana/Katakana for matching
-                            hira = jaconv.alphabet2kana(reading)
-                            if hira != reading:
-                                target_readings.add(hira)
-                            kata = jaconv.hira2kata(hira)
-                            if kata != reading:
-                                target_readings.add(kata)
-                        except Exception as e:
-                            logger.warning(f"jaconv conversion failed: {e}")
-                        
-                        logger.info(f"Target readings for filtering: {target_readings}")
-                        
-                        filtered_entries = [
-                            e for e in entries 
-                            if any(p["text"] in target_readings for p in e["phonetics"]) 
-                               or (e["phonetic"] in target_readings)
-                        ]
-                        
-                        if filtered_entries:
-                            logger.info(f"Filtered to {len(filtered_entries)} entries matching reading")
-                            return filtered_entries
-                        else:
-                            logger.info(f"No entries matched reading '{reading}'. Falling back to all {len(entries)} entries.")
-                            # Fallback: return all entries as usual
-                            return entries
-                    
-                    return entries
-
-            except Exception as e:
-                logger.error(f"JMDict lookup failed: {e}")
-                # Fallback to standard flow
+            jmd_entries = self._lookup_jmdict(word, word, reading)
+            if jmd_entries:
+                return jmd_entries
         else:
-            logger.info("Skipping JMDict lookup for non-Japanese text")
+            # Try Romaji-to-Kana lookup for Latin characters
+            try:
+                # Basic conversion
+                kana_query = jaconv.alphabet2kana(word.lower().replace(" ", ""))
+                if kana_query != word:
+                    logger.info(f"Trying Romaji JMDict lookup as: {kana_query}")
+                    jmd_entries = self._lookup_jmdict(kana_query, word, reading)
+                    if jmd_entries:
+                        return jmd_entries
+                    
+                    # Special case for Romaji ending in 'o' which might be 'ou' (e.g., Gochisosama)
+                    if kana_query.endswith("そ") or kana_query.endswith("う"):
+                        kana_query_long = kana_query + "う"
+                        logger.info(f"Trying Romaji JMDict lookup with long vowel: {kana_query_long}")
+                        jmd_entries = self._lookup_jmdict(kana_query_long, word, reading)
+                        if jmd_entries:
+                            return jmd_entries
+            except Exception as e:
+                logger.warning(f"Romaji-to-Kana lookup failed: {e}")
 
 
         # 2. Standard Flow - Translation & Language Detection
@@ -174,7 +195,7 @@ class DictionaryEngine:
                 is_identity = not translated.text or translated.text.strip().lower() == word.strip().lower()
                 
                 if is_identity and (src_lang in suspicious_langs or src_lang == "unknown"):
-                    logger.info(f"Detection suspicious ({src_lang}), trying Japanese fallback...")
+                    logger.info(f"Detection suspicious ({src_lang}), trying Japanese fallback")
                     fb_trans = self.translator.translate(word, src="ja", dest="en")
                     if fb_trans.text and fb_trans.text.strip().lower() != word.strip().lower():
                         translated = fb_trans
@@ -303,7 +324,6 @@ class DictionaryEngine:
         # 5. Grammar and Spell Check (LanguageTool)
         is_correct = True
         suggestions = []
-        # Run spell check if text is English or has been translated to English
         if src_lang == "en" or (src_lang == "ja" and translation_to_en):
             try:
                 logger.info("Spell checking...")
