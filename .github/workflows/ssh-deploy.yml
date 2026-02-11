@@ -1,0 +1,64 @@
+name: SSH Deployment
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+        description: "Path to the project directory on the server"
+      compose-file:
+        required: false
+        type: string
+        default: "docker-compose.yml"
+        description: "Docker compose file to use"
+      service-name:
+        required: false
+        type: string
+        default: ""
+        description: "Specific service to deploy (optional)"
+    secrets:
+      SSH_HOST:
+        required: true
+      SSH_USER:
+        required: true
+      SSH_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e # Stop on error
+            
+            echo "Starting deployment for ${{ inputs.working-directory }}..."
+            
+            # Navigate to directory
+            cd ${{ inputs.working-directory }}
+            
+            # Pull latest changes
+            echo "Pulling latest changes..."
+            git pull origin main
+            
+            # Build and Deploy
+            echo "Building and restarting containers..."
+            if [ -z "${{ inputs.service-name }}" ]; then
+              # valid docker compose command
+              docker compose -f ${{ inputs.compose-file }} up -d --build --remove-orphans
+            else
+              # valid docker compose command for specific service
+              docker compose -f ${{ inputs.compose-file }} up -d --build --remove-orphans ${{ inputs.service-name }}
+            fi
+            
+            # Cleanup
+            echo "Cleaning up unused images..."
+            docker image prune -f
+            
+            echo "Deployment successful!"
