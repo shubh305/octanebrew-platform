@@ -27,7 +27,7 @@ External projects (e.g., `openstream-backend`) must attach to this network.
 ## ENDPOINTS
 
 - **Web:** `https://octanebrew.dev`
-- **Stream:** `rtmp://octanebrew.dev/live`
+- **Stream:** `rtmp://stream.octanebrew.dev/live`
 - **Stats:** `https://stats.octanebrew.dev`
 - **Ops:** `https://grafana.octanebrew.dev` 
 - **Elasticsearch:** `https://kibana.octanebrew.dev`
