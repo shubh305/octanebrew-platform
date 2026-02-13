@@ -80,6 +80,8 @@ services:
       - MINIO_PORT=${MINIO_PORT}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
+      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
     networks:
       - octane-net
     depends_on:
@@ -95,29 +97,58 @@ services:
   kafka:
     image: confluentinc/cp-kafka:${CONFLUENT_VERSION}
     container_name: kafka
+    hostname: kafka
     ports:
-      - "8084:8084"
+      - "19092:19092"
+      - "8085:8085"
+
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9093"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
+
     environment:
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_PROCESS_ROLES: "broker,controller"
       CLUSTER_ID: ${KAFKA_CLUSTER_ID}
-      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:8084'
-      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9092,EXTERNAL://broker.octanebrew.dev:8084'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
-      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+
+      # listeners
+      KAFKA_LISTENERS: >
+        INTERNAL://0.0.0.0:9092,
+        CONTROLLER://0.0.0.0:9093,
+        HOST://0.0.0.0:19092,
+        PUBLIC://0.0.0.0:8085
+
+      KAFKA_ADVERTISED_LISTENERS: >
+        INTERNAL://kafka:9092,
+        HOST://localhost:19092,
+        PUBLIC://broker.octanebrew.dev:8085
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
+        CONTROLLER:PLAINTEXT,
+        INTERNAL:SASL_PLAINTEXT,
+        HOST:SASL_PLAINTEXT,
+        PUBLIC:SASL_PLAINTEXT
+
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
+
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
     volumes:
       - ${KAFKA_DATA_DIR}:/var/lib/kafka/data
+      - ./kafka_server_jaas.conf:/etc/kafka/kafka_server_jaas.conf:ro
     networks:
       - octane-net
 
@@ -141,12 +172,21 @@ services:
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      # SASL AUTH FOR CONNECT
+      CONNECT_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_SASL_MECHANISM: PLAIN
+      CONNECT_PRODUCER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_PRODUCER_SASL_MECHANISM: PLAIN
+      CONNECT_CONSUMER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_CONSUMER_SASL_MECHANISM: PLAIN
+      CONNECT_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
+      CONNECT_PRODUCER_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
+      CONNECT_CONSUMER_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
     volumes:
       - /mnt/data/connect/plugins:/usr/share/confluent-hub-components
     networks:
       - octane-net
-
   kafka-ui:
     image: kafbat/kafka-ui:${KAFBAT_VERSION}
     container_name: kafka-ui
@@ -157,6 +197,9 @@ services:
       AUTH_TYPE: 'LOGIN_FORM'
       SPRING_SECURITY_USER_NAME: ${KAFKA_UI_USER}
       SPRING_SECURITY_USER_PASSWORD: ${KAFKA_UI_PASS}
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KAFKA_CLUSTERS_0_PROPERTIES_SASL_MECHANISM: PLAIN
+      KAFKA_CLUSTERS_0_PROPERTIES_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: 'OpenStream-Connect'
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: 'http://connect:8083'
     depends_on:
@@ -282,7 +325,13 @@ services:
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
-    command: ["--kafka.server=kafka:9092", "--kafka.version=3.7.0"]
+    command:
+      - "--kafka.server=kafka:9092"
+      - "--kafka.version=3.7.0"
+      - "--sasl.enabled"
+      - "--sasl.username=${KAFKA_BROKER_USER}"
+      - "--sasl.password=${KAFKA_BROKER_PASS}"
+      - "--sasl.mechanism=plain"
     depends_on: [kafka]
     networks:
       - octane-net
@@ -419,6 +468,7 @@ services:
       - redis
     networks:
       - octane-net
+
 
 networks:
   octane-net:
