@@ -5,8 +5,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # Set workdir
 WORKDIR /app
 
-# Enable bytecode compilation
+# Enable bytecode compilation and set link mode to copy
 ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
 # Copy only dependency files
 COPY pyproject.toml uv.lock ./
@@ -28,4 +29,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PYTHONUNBUFFERED=1
 
 # Run the application
-CMD ["uv", "run", "uvicorn", "ingestion.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "ingestion.main:app", "--host", "0.0.0.0", "--port", "8001"]

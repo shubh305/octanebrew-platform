@@ -494,7 +494,7 @@ services:
       dockerfile: Dockerfile
     container_name: ingestion-svc
     ports:
-      - "8084:8000"
+      - "8084:8001"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
       - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
@@ -591,6 +591,11 @@ services:
       - octane-net
     # extra_hosts:
     #  - "elastic.octanebrew.dev:172.67.169.35"
+    healthcheck:
+      test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 
 
