@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy the rest of the application
 COPY README.md ./
 COPY src ./src
-COPY tests ./tests
+# COPY tests ./tests
 
 # Install the project
 RUN --mount=type=cache,target=/root/.cache/uv \
