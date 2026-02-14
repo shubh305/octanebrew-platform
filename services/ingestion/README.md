@@ -95,7 +95,7 @@ The system uses specialized prompts in `src/ingestion/processors/prompts.py`:
 *   **Default**: Generic and concise for summarization.
 
 ### B. Hybrid Search (Keyword + Vector)
-Utilizes **Linear Boosted Hybrid Search** to combine semantic vector scores with traditional BM25 keyword rankings. This ensures compatibility with the Elasticsearch community edition while providing high-relevance results by significantly boosting semantic matches.
+Utilizes **Linear Boosted Hybrid Search** to combine semantic vector scores with traditional BM25 keyword rankings.
 
 ---
 
@@ -148,11 +148,3 @@ Performs Hybrid Search. Rate limit: 60/min.
 | `REDIS_URL` | Redis for Rate Limiting |
 
 ---
-
-## 9. Development
-
-### Manual Verification
-```bash
-# Verify E2E Flow
-python3 scripts/verify_ingestion_e2e.py
-```

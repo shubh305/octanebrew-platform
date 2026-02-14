@@ -150,8 +150,6 @@ media_data/
 
 # Upcoming Services
 services/analytics
-services/ingestion
-services/intelligence
 
 # Misc
 /docs
@@ -161,3 +159,5 @@ users.yml
 **/.pytest_cache
 **/__pycache__
 **/tests/
+data/
+**/.venv

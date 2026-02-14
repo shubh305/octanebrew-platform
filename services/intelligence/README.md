@@ -9,7 +9,7 @@ The **Intelligence Service** is the central AI Orchestrator for the OctaneBrew p
 
 ## 1. Project Structure (Modular Design)
 
-The service utilizes a modular "Senior Architect" pattern for extensibility.
+The service utilizes a modular design pattern for extensibility.
 
 ```text
 src/intelligence/
@@ -48,8 +48,8 @@ The service protects upstream quotas using a **Token Bucket** algorithm implemen
 
 *   **Logic**:
     *   **Endpoint**: `/v1/chat/completions`
-    *   **Capacity**: 50 tokens (Burst support).
-    *   **Refill**: 0.83 tokens/sec (50 per minute).
+    *   **Capacity**: 60 tokens (Burst support).
+    *   **Refill**: 1 token/sec (60 per minute).
 *   **Identification**: Uses `X-App-ID` header (e.g., `ingestion`, `openstream`) or client IP.
 *   **Inspection**: `docker exec redis redis-cli HGETALL "rate_limit:chat:<ID>"`
 
@@ -99,11 +99,3 @@ The service protects upstream quotas using a **Token Bucket** algorithm implemen
 
 - **Metrics**: `http://localhost:8000/metrics` (Prometheus format).
 - **Tracing**: OpenTelemetry (Propagates `trace_id` from Ingestion API).
-
----
-
-## 7. Testing
-```bash
-# Run localized unit tests
-uv run pytest tests/
-```

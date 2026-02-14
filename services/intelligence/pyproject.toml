@@ -1,7 +1,7 @@
 [project]
 name = "intelligence"
 version = "0.1.0"
-description = "Add your description here"
+description = "Intelligence Service for OctaneBrew"
 readme = "README.md"
 authors = [
     { name = "shubh305", email = "shubham.305singh@gmail.com" }
