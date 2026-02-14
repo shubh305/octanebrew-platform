@@ -1,0 +1,35 @@
+from pydantic import BaseModel, Field, field_validator
+from typing import Dict, Any, Optional
+from datetime import datetime
+
+class IngestRequest(BaseModel):
+    trace_id: str
+    source_app: str
+    entity_id: str
+    entity_type: str = "article"
+    operation: str = "index"
+    timestamp: datetime
+    payload: Dict[str, Any]
+    enrichments: list[str] = []
+    index_name: Optional[str] = None
+    chunking_strategy: str = "recursive"
+    chunk_size: int = 500
+    chunk_overlap: int = 50
+
+    
+    @field_validator('payload')
+    def validate_payload(cls, v, values):
+        if 'operation' in values.data and values.data['operation'] == 'index':
+            if 'text' not in v and 'content' not in v:
+                pass
+        return v
+
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+    filters: Optional[Dict[str, Any]] = None
+    index_name: Optional[str] = None
+    use_hybrid: bool = True
+    min_score: float = 2.0 
+    vector_threshold: float = 0.7 # Cosine similarity threshold for kNN
+    return_chunks: bool = True
