@@ -62,55 +62,86 @@ class ElasticManager:
         filters: dict = None, 
         index_name: str = None,
         use_hybrid: bool = True,
-        min_score: float = 0.5,
-        vector_threshold: float = 0.7,
+        min_score: float = 25.0,
+        vector_threshold: float = 0.65,
         return_chunks: bool = True
     ):
         target_index = index_name or self.index_name
+        logger.info(f"Search: query='{query_text}', hybrid={use_hybrid}, limit={limit}, index={target_index}")
         
         # 1. Base Filters
-        filter_clauses = []
+        filter_clauses = [{"term": {"status": "ready"}}]
         if filters:
-            filter_clauses = [
+            filter_clauses.extend([
                 {"term": {SchemaRegistry.map_filter_field(k): v}} 
                 for k, v in filters.items()
-            ]
+            ])
 
-        # 2. Construct kNN Query
-        knn_query = {
-            "field": "chunks.vector",
-            "query_vector": vector,
-            "k": limit * 2,
-            "num_candidates": 100,
-            "similarity": vector_threshold 
+        # 2. Construct Lexical Query
+        should_clauses = [
+            {
+                "constant_score": {
+                    "filter": { "match_phrase": { "title": query_text } },
+                    "boost": 50.0,
+                    "_name": "title_proximity_bonus"
+                }
+            },
+            {
+                "multi_match": {
+                    "_name": "lexical_base",
+                    "query": query_text,
+                    "fields": ["title^3", "summary^2", "content^0.5"],
+                    "type": "most_fields",
+                    "operator": "and",
+                    "boost": 2.0 
+                }
+            }
+        ]
+
+        # 3. Construct KNN Query
+        chunk_should = []
+        
+        chunk_should.append({
+            "constant_score": {
+                "filter": { "match_phrase": { "chunks.text_chunk": query_text } },
+                "boost": 15.0,
+                "_name": "chunk_proximity_bonus"
+            }
+        })
+
+        if use_hybrid and vector:
+            chunk_should.append({
+                "knn": {
+                    "_name": "chunk_semantic",
+                    "field": "chunks.vector",
+                    "query_vector": vector,
+                    "k": limit * 5,
+                    "num_candidates": 200,
+                    "similarity": vector_threshold,
+                    "boost": 25.0 
+                }
+            })
+
+        nested_clause = {
+            "nested": {
+                "path": "chunks",
+                "score_mode": "max",
+                "query": {
+                    "bool": {
+                        "should": chunk_should,
+                        "minimum_should_match": 1
+                    }
+                },
+                "inner_hits": {
+                    "name": "matched_chunks",
+                    "size": 1,
+                    "_source": ["chunks.text_chunk"]
+                } if return_chunks else {},
+                "boost": 1.0 
+            }
         }
         
-        if filter_clauses:
-            knn_query["filter"] = {"bool": {"must": filter_clauses}}
-            
-        if return_chunks:
-            # Re-retrieve specific nested hits
-            knn_query["inner_hits"] = {
-                "name": "matched_chunks",
-                "_source": ["text_chunk"],
-                "size": 1
-            }
-
-        # 3. Construct Lexical Query
-        lexical_query = {
-            "bool": {
-                "must": [
-                    {
-                        "multi_match": {
-                            "query": query_text,
-                            "fields": ["title^3", "content", "chunks.text_chunk"],
-                            "type": "best_fields"
-                        }
-                    }
-                ],
-                "filter": filter_clauses
-            }
-        }
+        should_clauses.append(nested_clause)
 
         # 4. Search - Combined lexical query + kNN query
         search_body = {
@@ -118,34 +149,8 @@ class ElasticManager:
             "min_score": min_score,
             "query": {
                 "bool": {
-                    "should": [
-                        {
-                            "multi_match": {
-                                "query": query_text,
-                                "fields": ["title^3", "content", "chunks.text_chunk"],
-                                "boost": 1.0
-                            }
-                        },
-                        {
-                            "nested": {
-                                "path": "chunks",
-                                "query": {
-                                    "knn": {
-                                        "field": "chunks.vector",
-                                        "query_vector": vector,
-                                        "k": limit,
-                                        "num_candidates": 100,
-                                        "similarity": vector_threshold
-                                    }
-                                },
-                                "inner_hits": {
-                                    "name": "matched_chunks",
-                                    "size": 1
-                                },
-                                "boost": 50.0
-                            }
-                        }
-                    ],
+                    "should": should_clauses,
+                    "minimum_should_match": 1,
                     "filter": filter_clauses
                 }
             }
@@ -154,9 +159,22 @@ class ElasticManager:
         resp = await self.client.search(
             index=target_index,
             body=search_body,
-            source=["title", "content", "metadata", "entity_id", "source_app"]
+            source={
+                "includes": ["title", "summary", "content", "metadata", "entity_id", "source_app", "chunks.text_chunk"]
+            }
         )
-        return resp['hits']['hits']
+        
+        hits = resp['hits']['hits']
+        
+        for i, hit in enumerate(hits[:3]):
+            signals = hit.get('matched_queries', [])
+            score = hit['_score']
+            entity_id = hit['_source'].get('entity_id')
+            logger.info(f"Audit [Hit {i+1}] ({entity_id}): score={score:.2f}, signals={signals}")
+
+        logger.info(f"Search returned {len(hits)} results (max score: {resp['hits'].get('max_score')})")
+        return hits
 
     async def close(self):
         await self.client.close()
+

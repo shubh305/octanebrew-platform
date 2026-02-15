@@ -53,23 +53,31 @@ async def search_content(query_request: SearchRequest, request: Request):
         for hit in hits:
             source = hit['_source']
             result = {
-                "score": hit.get('_score') or hit.get('rank'),
+                "score": hit.get('_score'),
                 "title": source.get('title'),
-                "content": source.get('content'),
+                "summary": source.get('summary'),
                 "metadata": source.get('metadata'),
                 "entity_id": source.get('entity_id'),
-                "source_app": source.get('source_app')
+                "source_app": source.get('source_app'),
+                "matched_chunk": None
             }
             
-            # Extract Matched Chunk if inner hits were requested
-            if query_request.return_chunks and 'inner_hits' in hit:
+            # Extract matched chunk snippet from inner hits
+            if query_request.return_chunks:
                 try:
-                    inner_hits = hit['inner_hits']['matched_chunks']['hits']['hits']
-                    if inner_hits:
-                        inner_source = inner_hits[0]['_source']
-                        result["matched_chunk"] = inner_source.get('text_chunk') or \
-                                                  inner_source.get('chunks', {}).get('text_chunk')
-                except (KeyError, IndexError):
+                    if 'inner_hits' in hit and 'matched_chunks' in hit['inner_hits']:
+                        inner_hits = hit['inner_hits']['matched_chunks']['hits']['hits']
+                        if inner_hits:
+                            chunk_data = inner_hits[0]['_source']
+                            result["matched_chunk"] = chunk_data.get('text_chunk') or \
+                                                      chunk_data.get('chunks', {}).get('text_chunk')
+                    
+                    if not result["matched_chunk"] and "chunks" in source:
+                        chunks = source["chunks"]
+                        if isinstance(chunks, list) and len(chunks) > 0:
+                            result["matched_chunk"] = chunks[0].get('text_chunk')
+                except Exception as e:
+                    logger.warning(f"Failed to extract matched_chunk for {result['entity_id']}: {e}")
                     pass
             
             results.append(result)

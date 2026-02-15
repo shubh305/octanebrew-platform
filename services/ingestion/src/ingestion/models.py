@@ -30,6 +30,6 @@ class SearchRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = None
     index_name: Optional[str] = None
     use_hybrid: bool = True
-    min_score: float = 2.0 
-    vector_threshold: float = 0.7 # Cosine similarity threshold for kNN
+    min_score: float = 25.0
+    vector_threshold: float = 0.65
     return_chunks: bool = True

@@ -24,6 +24,8 @@ JOBS_PROCESSED = Counter('octane_ingest_worker_jobs_total', 'Total jobs processe
 JOB_LATENCY = Histogram('octane_ingest_worker_job_seconds', 'Time spent processing job')
 RETRY_COUNT = Counter('octane_ingest_worker_retries_total', 'Total job retries')
 
+from pathlib import Path
+
 class JobProcessor:
     def __init__(self):
         self.elastic = ElasticManager()
@@ -32,7 +34,15 @@ class JobProcessor:
         self.pool = None
         self.producer = None
 
+    async def health_check_task(self):
+        """Background task to touch a file for Docker health checks."""
+        while True:
+            Path("/tmp/healthy").touch()
+            await asyncio.sleep(30)
+
     async def start(self):
+        asyncio.create_task(self.health_check_task())
+
         # Start Metrics Server
         try:
             start_http_server(8001)

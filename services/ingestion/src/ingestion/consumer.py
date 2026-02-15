@@ -18,8 +18,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def health_check_task():
+    """Background task to touch a file for Docker health checks."""
+    while True:
+        Path("/tmp/healthy").touch()
+        await asyncio.sleep(30)
+
 async def consume():
     logger.info(f"Starting Ingestion Worker...")
+    asyncio.create_task(health_check_task())
     
     elastic = ElasticManager()
     await elastic.init_index()
@@ -30,7 +37,7 @@ async def consume():
     try:
         pool = await asyncpg.create_pool(settings.POSTGRES_DSN)
     except Exception as e:
-        print(f"Failed to connect to DB: {e}")
+        logger.error(f"Failed to connect to DB: {e}")
         return
     
     # Init Kafka 
@@ -56,7 +63,7 @@ async def consume():
     )
     
     await consumer.start()
-    print(f"Consumer started on {settings.KAFKA_TOPIC}")
+    logger.info(f"Consumer started on {settings.KAFKA_TOPIC}")
     
     try:
         async for msg in consumer:
@@ -83,7 +90,7 @@ async def consume():
                         "status": "processing_vectors"
                     }
                     await elastic.upsert_text(data.entity_id, doc_body, index_name=data.index_name)
-                    print(f"Pass 1: Indexed text for {data.entity_id} in {data.index_name or 'default'}")
+                    logger.info(f"Pass 1: Indexed text for {data.entity_id} in {data.index_name or 'default'}")
                     
                     # 3. Pass 2: Vector Enrichment
                     if text_content:
@@ -112,13 +119,12 @@ async def consume():
                                 "chunking_strategy": data.chunking_strategy
                             }), data.index_name)
                         
-                        print(f"Pass 2: Queued {data.chunking_strategy} embedding job for {data.entity_id}")
+                        logger.info(f"Pass 2: Queued {data.chunking_strategy} embedding job for {data.entity_id}")
             
                 await consumer.commit()
-                Path("/tmp/healthy").touch()
                 
             except Exception as e:
-                print(f"Error processing message: {e}")
+                logger.error(f"Error processing message: {e}", exc_info=True)
                 pass
 
     finally:
