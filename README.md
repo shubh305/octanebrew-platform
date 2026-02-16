@@ -1,6 +1,6 @@
-# OCTANEBREW PLATFORM (`octanebrew-platform`)
+# OCTANEBREW PLATFORM
 
-**Status:** `OPERATIONAL` // **Version:** `2026.02` // **Tier:** `ENTERPRISE_CORE`
+**Status:** `OPERATIONAL` // **Version:** `2026.02`
 
 The **OctaneBrew Platform** is the high-performance administrative command center and shared infrastructure backbone for the OctaneBrew ecosystem. It employs a **Hub-and-Spoke Architecture**, where a centralized "Core Hub" provides critical multi-tenant services (AI, Storage, Event Streaming, Ingestion) to decentralized "Spoke Applications" like **OpenStream** and **Conduit**.
 
