@@ -481,9 +481,9 @@ services:
       - redis
     networks:
       - octane-net
-    extra_hosts:
-     - "broker.octanebrew.dev:129.154.43.166"
-     - "elastic.octanebrew.dev:172.67.169.35"
+    # extra_hosts:
+    #  - "broker.octanebrew.dev:129.154.43.166"
+    #  - "elastic.octanebrew.dev:172.67.169.35"
 
   ingestion-worker:
     build: 
@@ -517,9 +517,9 @@ services:
       - redis
     networks:
       - octane-net
-    extra_hosts:
-     - "broker.octanebrew.dev:129.154.43.166"
-     - "elastic.octanebrew.dev:172.67.169.35"
+    # extra_hosts:
+    #  - "broker.octanebrew.dev:129.154.43.166"
+    #  - "elastic.octanebrew.dev:172.67.169.35"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s
@@ -555,8 +555,8 @@ services:
       - postgres
     networks:
       - octane-net
-    extra_hosts:
-     - "elastic.octanebrew.dev:172.67.169.35"
+    # extra_hosts:
+    #  - "elastic.octanebrew.dev:172.67.169.35"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s

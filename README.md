@@ -1,57 +1,109 @@
-# OCTANEBREW PLATFORM
+# OCTANEBREW PLATFORM (`octanebrew-platform`)
 
-**Status:** `OPERATIONAL` // **Version:** `2026.1`
+**Status:** `OPERATIONAL` // **Version:** `2026.02` // **Tier:** `ENTERPRISE_CORE`
 
-Centralized infrastructure for the OctaneBrew ecosystem. Hosts shared services (store, stream, bus, logs) on a single Cloud VM.
+The **OctaneBrew Platform** is the high-performance administrative command center and shared infrastructure backbone for the OctaneBrew ecosystem. It employs a **Hub-and-Spoke Architecture**, where a centralized "Core Hub" provides critical multi-tenant services (AI, Storage, Event Streaming, Ingestion) to decentralized "Spoke Applications" like **OpenStream** and **Conduit**.
 
-## ARCHITECTURE
+---
 
-| Component | Path | Description |
-| :--- | :--- | :--- |
-| **Core** | `./` | Docker Compose source of truth & Env vars. |
-| **Gateway** | `nginx-gateway/` | SSL termination, routing, and static assets. |
-| **Ingestion** | `services/ingestion/` | High-throughput AI content pipeline (Two-Pass). |
-| **Intelligence** | `services/intelligence/` | Central AI gateway & model orchestrator. |
-| **Linguistics** | `services/dictionary-service/` | NLP engine for word analysis & grammar. |
-| **Storage** | `services/storage-service/` | gRPC/S3 shared asset management. |
-| **Video Ops** | `services/ffmpeg-worker/` | Automated FLV -> MP4 transcoding & thumbnails. |
-| **Web** | `html/` | Landing page entrypoint. |
+## 1. System Architecture: Hub & Spoke
 
-## SERVICES
+The platform is engineered to prevent infrastructure bloat by consolidating heavy-lift logic into a single resilient hub while allowing spokes to remain lean and deployment-agnostic.
 
-### [Ingestion Service](./services/ingestion/README.md)
-The gateway for all platform content. Implements a **Two-Pass Architecture**:
-1.  **Pass 1**: Instant keyword indexing in Elasticsearch via Kafka.
-2.  **Pass 2**: Asynchronous AI enrichment (summarization + vector embedding) via the Oplog pattern.
+```mermaid
+graph LR
+    subgraph "SPOKE_APPLICATIONS"
+        OS[OpenStream<br/><i>Live Delivery</i>]
+        PC[Conduit<br/><i>Content Network</i>]
+        EXT[Third-Party<br/><i>External Spokes</i>]
+    end
 
-### [Intelligence Service](./services/intelligence/README.md)
-A high-performance abstraction layer for LLMs (Gemini, OpenAI). Provides standardized vector embeddings and chat completions with Redis-backed rate limiting.
+    subgraph "CORE_PLATFORM_HUB"
+        direction TB
+        subgraph "Enrichment & AI"
+            ING[Ingestion Engine]
+            INT[Intelligence AI]
+        end
+        subgraph "Logic & Storage"
+            STR[Storage gRPC]
+            DIC[Dictionary NLP]
+        end
+        subgraph "Compute & Metrics"
+            ANL[Analytics Node]
+            FFM[Compute Worker]
+        end
+    end
 
-### [Dictionary Service](./services/dictionary-service/README.md)
-Linguistic utility for the OpenStream ecosystem. Features POS tagging, multi-layered language detection (Romaji-aware), and real-time grammar checking.
+    subgraph "TELEMETRY_STACK"
+        PROM{Prometheus<br/><i>Metrics Scraper</i>}
+        GRAF[Grafana<br/><i>Visualization</i>]
+    end
 
-### [Storage Service](./services/storage-service/)
-A NestJS-based gRPC microservice that provides a unified interface for file operations across S3 and local volumes.
+    subgraph "INFRASTRUCTURE_NODES"
+        KB[(Kafka Bus<br/><i>Event Streaming</i>)]
+        ES[(Elasticsearch<br/><i>Semantic Search</i>)]
+        PG[(Polyglot DBs<br/><i>Postgres/Redis</i>)]
+        CH[(ClickHouse<br/><i>OLAP Analytics</i>)]
+    end
 
-### [FFmpeg Worker](./services/ffmpeg-worker/README.md)
-A stateless Kafka consumer that handles VOD processing. Automatically converts live recordings to web-compatible MP4s and extracts thumbnails.
-
-## DEPLOYMENT
-
-```bash
-docker-compose up -d
+    OS & PC & EXT -->|gRPC / REST / Events| CORE_PLATFORM_HUB
+    CORE_PLATFORM_HUB & OS & PC -->|Prometheus Metrics| PROM
+    PROM --> GRAF
+    CORE_PLATFORM_HUB -->|Stream Cons/Prod| KB
+    CORE_PLATFORM_HUB -->|Vector Sync| ES
+    CORE_PLATFORM_HUB -->|Stateful Persistence| PG
+    CORE_PLATFORM_HUB -->|Batch Telemetry| CH
 ```
 
-## NETWORK
+---
 
-All services communicate via `octane-net` (Bridge).
-External projects (e.g., `openstream-backend`) must attach to this network.
+## 2. Shared Core Engines
 
-## ENDPOINTS
+Each service in the `./services` directory serves a specific architectural role within the hub.
 
-- **Web:** `https://octanebrew.dev`
-- **Stream:** `rtmp://stream.octanebrew.dev/live`
-- **Stats:** `https://stats.octanebrew.dev`
-- **Ops:** `https://grafana.octanebrew.dev` 
-- **Logs:** `https://dozzle.octanebrew.dev`
-- **Elasticsearch:** `https://kibana.octanebrew.dev`
+| Engine | Directory | Role | Tech Stack |
+| :--- | :--- | :--- | :--- |
+| **Ingestion** | [`/ingestion`](./services/ingestion/README.md) | Two-Pass content enrichment & vector indexing. | Kafka, FastAPI, ES |
+| **Intelligence** | [`/intelligence`](./services/intelligence/README.md) | Standardized LLM gateway & reranking hub. | Gemini, OpenAI, FlashRank |
+| **Dictionary** | [`/dictionary-service`](./services/dictionary-service/README.md) | Linguistic analysis & grammar validation. | JamDict, NLTK, Redis |
+| **Storage** | [`/storage-service`](./services/storage-service/README.md) | Multi-tenant gRPC/S3 object orchestration. | MinIO, NestJS, gRPC |
+| **Analytics*** | [`/analytics`](./services/analytics/README.md) | ClickHouse-backed event telemetry warehouse. | ClickHouse, KafkaJS |
+| **Compute** | [`/ffmpeg-worker`](./services/ffmpeg-worker/README.md) | Headless FFmpeg transcoding & worker mesh. | FFmpeg, NestJS, Kafka |
+
+---
+
+## 3. Infrastructure & Spoke Integration
+
+### Network Topology
+All services communicate over the internal `octane-net` overlay. External spokes connect to the hub via the **Nginx Gateway** or direct network attachment.
+
+### Integration Contracts
+*   **Event Bus**: Spokes produce to `octane.ingest.requests` for multi-stage enrichment.
+*   **gRPC**: Used for high-speed binary transfers (Storage) and linguistic lookups.
+*   **REST**: Unified API gateway for AI completions and semantic search endpoints.
+
+---
+
+## 4. Deployment & Observability
+
+### Rapid Startup
+The platform utilizes `uv` for hyper-fast Python dependency management and Docker layer caching.
+
+```bash
+# Pull and start the entire hub
+docker-compose up -d --build
+```
+
+### Telemetry Nodes
+*   **Grafana**: `https://grafana.octanebrew.dev` (System Health)
+*   **Kafka UI**: `https://kafka.octanebrew.dev` (Event Stream Inspection)
+*   **Kibana**: `https://kibana.octanebrew.dev` (Data Discovery)
+*   **Dozzle**: `https://dozzle.octanebrew.dev` (Real-time Logs)
+
+---
+
+## 5. Development Standards
+
+*   **Zero Data Loss**: Guaranteed by the Persistent Oplog pattern in the Ingestion Engine.
+*   **Elastic Scaling**: Headless compute workers (FFmpeg) scale horizontally via Kafka consumer groups.
+*   **Polyglot Persistence**: The right tool for the job (Postgres for State, ES for Search, ClickHouse for Analytics).
