@@ -253,6 +253,7 @@ h1 {
     transition: all 0.3s;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .project-showcase:hover {
@@ -502,6 +503,13 @@ h1 {
     text-shadow: 2px 2px 0px red, -2px -2px 0px blue;
 }
 
+.subtext {
+    font-size: 0.7rem;
+    color: #444;
+    letter-spacing: 0.15rem;
+    margin-top: 0.5rem;
+}
+
 .scanline {
     width: 100%;
     height: 5px;
@@ -630,6 +638,7 @@ footer {
     line-height: 1.5;
     margin: 1rem 0;
     flex: 1;
+    word-wrap: break-word;
 }
 
 .showcase-tech {
@@ -682,8 +691,23 @@ footer {
     
     .deck-vitals { 
         grid-template-columns: 1fr 1fr; 
-        gap: 1.5rem; 
+        gap: 1rem; 
         padding-top: 1.5rem; 
+    }
+
+    .glitch {
+        font-size: 1.4rem;
+        letter-spacing: 0.2rem;
+    }
+
+    .subtext {
+        font-size: 0.6rem;
+        letter-spacing: 0.1rem;
+    }
+
+    .ended-title {
+        font-size: 1rem;
+        letter-spacing: 0.1rem;
     }
     
     .vital-value { font-size: 0.9rem; }
@@ -692,5 +716,29 @@ footer {
 @media (max-width: 480px) {
     h1 { font-size: 1.2rem; letter-spacing: 0.2rem; }
     .hero-title { font-size: 1.8rem; }
-    .deck-vitals { grid-template-columns: 1fr; gap: 1rem; }
+    
+    .deck-vitals { 
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 1rem; 
+    }
+    
+    .showcase-name {
+        font-size: 1.2rem;
+        letter-spacing: 0.1rem;
+        word-break: break-all;
+    }
+
+    .glitch {
+        font-size: 1.1rem;
+        letter-spacing: 0.1rem;
+    }
+
+    .subtext {
+        font-size: 0.55rem;
+        letter-spacing: 0.05rem;
+    }
+    
+    .ended-title {
+        font-size: 0.9rem;
+    }
 }
