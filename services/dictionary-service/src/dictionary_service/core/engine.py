@@ -1,5 +1,4 @@
 import logging
-import spacy
 import inflect
 from textblob import Word, TextBlob
 import language_tool_python
@@ -19,7 +18,6 @@ logging.basicConfig(level=logging.INFO)
 class DictionaryEngine:
     def __init__(self):
         # Initialize NLP models and tools
-        self.nlp = spacy.load("en_core_web_sm")
         self.p = inflect.engine()
         self.tool = language_tool_python.LanguageTool('en-US')
         self.translator = Translator()

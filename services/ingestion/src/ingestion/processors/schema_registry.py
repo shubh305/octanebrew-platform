@@ -10,7 +10,11 @@ class SchemaRegistry:
             "content": { "type": "text", "analyzer": "standard" },
             "summary": { "type": "text", "analyzer": "standard" },
             "status": { "type": "keyword" },
-            "metadata": { "type": "flattened" }
+            "metadata": { "type": "flattened" },
+            "entities": { "type": "keyword" },
+            "language": { "type": "keyword" },
+            "key_concepts": { "type": "keyword" },
+            "published_at": { "type": "date" }
         }
 
     @staticmethod
@@ -36,6 +40,7 @@ class SchemaRegistry:
             "type": "nested",
             "properties": {
                 "text_chunk": { "type": "text" },
+                "entities": { "type": "keyword" },
                 "vector": {
                     "type": "dense_vector",
                     "dims": dims,

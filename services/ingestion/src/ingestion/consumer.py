@@ -43,7 +43,7 @@ async def consume():
     # Init Kafka 
     kafka_kwargs = {
         "bootstrap_servers": settings.KAFKA_BOOTSTRAP_SERVERS,
-        "group_id": "ingestion_worker_group",
+        "group_id": settings.KAFKA_GROUP_ID,
         "enable_auto_commit": False,
         "auto_offset_reset": "earliest",
         "value_deserializer": lambda m: json.loads(m.decode('utf-8'))

@@ -129,9 +129,17 @@ class JobProcessor:
         if job['task_type'] in ['embed', 'enrich']:
             chunks = payload.get('chunks')
             text = payload.get('text')
+            title = payload.get('title') or ""
             strategy = payload.get('chunking_strategy', 'recursive')
             
-            # 1. Chunk if missing 
+            # 1. Generate Summary
+            summary_data = None
+            if ("summary" in enrichments or "vectors" in enrichments) and text:
+                entity_type = payload.get('entity_type', 'article')
+                summary_data = await self.intelligence.generate_summary(text, entity_type=entity_type)
+                logger.info(f"Generated intelligence metadata: {list(summary_data.keys()) if summary_data else 'None'}")
+
+            # 2. Chunk if missing
             if not chunks and text:
                 logger.info(f"Worker performing {strategy} chunking for {job['entity_id']}...")
                 chunks = await self.chunker.split_text(
@@ -143,35 +151,50 @@ class JobProcessor:
                 )
 
             nested_chunks = []
-            summary = None
             
-            # 2. Vectorize Chunks
+            # 3. Vectorize Chunks
             if chunks:
-                vectors = await self.intelligence.embed_documents(chunks)
-                logger.info(f"Generated {len(vectors)} embeddings with dimension {len(vectors[0])}")
+                enriched_chunks = []
+                entities = summary_data.get('entities', []) if summary_data else []
+                concepts = summary_data.get('key_concepts', []) if summary_data else []
+                
+                for chunk in chunks:
+                    header = f"Title: {title}\n"
+                    if concepts: header += f"Concepts: {', '.join(concepts[:3])}\n"
+                    if entities: header += f"Entities: {', '.join(entities[:5])}\n"
+                    enriched_text = f"{header}---\n{chunk}"
+                    enriched_chunks.append(enriched_text)
+                
+                vectors = await self.intelligence.embed_documents(enriched_chunks)
+                logger.info(f"Generated {len(vectors)} enriched embeddings")
+                
                 nested_chunks = [
-                    {"text_chunk": txt, "vector": vec}
+                    {
+                        "text_chunk": txt, 
+                        "vector": vec,
+                        "entities": entities
+                    }
                     for txt, vec in zip(chunks, vectors)
                 ]
-            
-            # 3. Generate Summary
-            if "summary" in enrichments and text:
-                entity_type = payload.get('entity_type', 'article')
-                summary = await self.intelligence.generate_summary(text, entity_type=entity_type)
                 
-            await self.elastic.update_vectors(job['entity_id'], nested_chunks, summary, index_name=job['target_index'])
+            await self.elastic.update_vectors(job['entity_id'], nested_chunks, summary_data, index_name=job['target_index'])
 
             # 4. Emit Result Event
-            await self.emit_result(job['entity_id'], payload.get('entity_type'), summary, job['target_index'])
+            await self.emit_result(job['entity_id'], payload.get('entity_type'), summary_data, job['target_index'])
 
-    async def emit_result(self, entity_id, entity_type, summary, index_name):
-        if not summary:
+    async def emit_result(self, entity_id, entity_type, summary_data, index_name):
+        if not summary_data:
             return
             
+        summary_text = summary_data.get('overview') or summary_data.get('summary') or str(summary_data)
+        
         result_payload = {
             "entity_id": entity_id,
             "entity_type": entity_type,
-            "summary": summary,
+            "summary": summary_text,
+            "entities": summary_data.get('entities', []),
+            "key_concepts": summary_data.get('key_concepts', []),
+            "language": summary_data.get('language'),
             "index_name": index_name,
             "status": "completed",
             "timestamp": asyncio.get_event_loop().time()

@@ -4,7 +4,6 @@ import httpx
 import logging
 import asyncio
 import tiktoken
-import re
 from ..config import settings
 
 logger = logging.getLogger(__name__)

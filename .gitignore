@@ -161,3 +161,4 @@ users.yml
 **/tests/
 data/
 **/.venv
+**/scripts/

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Literal
 from datetime import datetime
 
 class IngestRequest(BaseModel):
@@ -33,3 +33,8 @@ class SearchRequest(BaseModel):
     min_score: float = 25.0
     vector_threshold: float = 0.65
     return_chunks: bool = True
+    sort_by: Literal["relevancy", "recency", "balanced"] = "relevancy"
+    enable_query_expansion: bool = False
+    enable_query_analysis: bool = True
+    enable_reranking: bool = False
+    debug: bool = False
