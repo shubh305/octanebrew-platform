@@ -1,15 +1,15 @@
 # Intelligence Service (`intelligence`)
 
 ## Overview
-The **Intelligence Service** is the central AI Orchestrator for the OctaneBrew platform. It abstracts complex LLM operations behind a standardized API, handling provider strategy, rate limiting, and observability.
+The **Intelligence Service** is the central AI Orchestrator for the OctaneBrew platform. It abstracts complex LLM and NLP operations behind a standardized API, handling provider strategy, rate limiting, Reranking, and Semantic Query Intelligence.
 
-**Role**: AI Gateway, Embeddings Provider, Semantic Analyzer.
+**Role**: AI Gateway, Embeddings Provider, Cross-Encoder Reranker, Query Intelligence.
 
 ---
 
 ## 1. Project Structure (Modular Design)
 
-The service utilizes a modular design pattern for extensibility.
+The service utilizes a modular design pattern for extensibility, separating core infrastructure from routing logic.
 
 ```text
 src/intelligence/
@@ -18,11 +18,13 @@ src/intelligence/
 │   ├── limiter.py          # Token Bucket Algorithm (Redis Lua)
 │   ├── observability.py    # Metrics (Prometheus) & Tracing (OTel)
 │   ├── factory.py          # AI Provider Strategy Pattern
-│   └── interfaces.py       # Abstract Base Classes for AI
+│   ├── reranker.py         # FlashRank Cross-Encoder Logic
+│   └── analyzer.py         # Query Intent & Translation Logic
 ├── routers/                # API Endpoints
-│   ├── chat.py             # Chat Completions (POST /v1/chat/completions)
-│   └── embeddings.py       # Vector Generation (POST /v1/embeddings)
-├── providers/              # LLM Implementations (OpenAI, Gemini)
+│   ├── chat.py             # Chat Completions
+│   ├── embeddings.py       # Vector Generation
+│   ├── rerank.py           # Cross-Encoder Reranking
+│   └── query.py            # Query Analysis & Extraction
 ├── config.py               # Settings & Model Mapping
 └── main.py                 # Clean Entry Point
 ```
@@ -35,51 +37,77 @@ src/intelligence/
 graph TD
     Client[Ingestion/Web] -->|HTTP| API[Intelligence API]
     API -->|Lua Script| Redis[Redis Token Bucket]
-    API -->|Strategy Pattern| Factory[Provider Factory]
+    
+    subgraph "Core Engines"
+        API -->|Strategy Pattern| Factory[Provider Factory]
+        API -->|Local Model| Rerank[FlashRank Reranker]
+        API -->|NLP Logic| Analyzer[Query Analyzer]
+    end
+
     Factory -->|Gemini| Google[Google Cloud AI]
     Factory -->|OpenAI| OAI[OpenAI API]
+    Analyzer -->|Refinement| Factory
 ```
+
+## 3. Resilience & Infrastructure Stability
+
+The service is engineered for **Enterprise-Grade Stability**, ensuring that upstream AI provider quotas are never exceeded and that internal resources remain protected from search-bursts or malicious spikes.
+
+### A. Redis-Backed Rate Limiting (Token Bucket)
+Every critical endpoint is protected by a high-precision **Token Bucket** algorithm implemented via atomic Redis Lua scripts.
+*   **Capacity & Refill**: Configurable per-tier (e.g., 60 tokens burst, refilling at 1/sec).
+*   **Distributed State**: Rate limits are shared across all service instances, preventing "split-brain" quota exhaustion.
+*   **Identification**: Identifies callers via `X-App-ID` (e.g., `ingestion`, `conduit`) or Client IP.
+*   **Observability**: Real-time bucket status can be inspected: `docker exec redis redis-cli HGETALL "rate_limit:chat:<ID>"`.
+
+### B. High-Performance Isolation
+*   **Model Tiering**: Uses "fast" models for analysis and "advanced" models for complex chat, optimizing cost and latency.
+*   **Stateless Scaling**: The gRPC and REST handlers are fully stateless, allowing horizontal scaling behind the Nginx hub.
 
 ---
 
-## 3. Rate Limiting (Token Bucket)
+## 4. Key Technical Features
 
-The service protects upstream quotas using a **Token Bucket** algorithm implemented in a Redis Lua script.
+### A. Cross-Encoder Reranking
+Uses the **FlashRank** library to re-order search results by computing a deep semantic relevance score between the query and document snippets. This significantly improves precision by moving high-relevancy matches to the top.
 
-*   **Logic**:
-    *   **Endpoint**: `/v1/chat/completions`
-    *   **Capacity**: 60 tokens (Burst support).
-    *   **Refill**: 1 token/sec (60 per minute).
-*   **Identification**: Uses `X-App-ID` header (e.g., `ingestion`, `openstream`) or client IP.
-*   **Inspection**: `docker exec redis redis-cli HGETALL "rate_limit:chat:<ID>"`
+### B. Query Intelligence
+Parses unstructured queries to extract:
+*   **Language Detection**: Automatic translation to English for better cross-lingual recall.
+*   **Entity Extraction**: Identifies key names, products, or locations for keyword boosting.
+*   **Intent Discovery**: Determines if the user is looking for a video, an article, or a direct answer.
 
 ---
 
 ## 4. API Reference
 
-### A. Chat Completions
-**Endpoint**: `POST /v1/chat/completions`
+### A. Rerank
+**Endpoint**: `POST /v1/rerank`
+Re-orders a list of candidate documents.
 
-#### Request
 ```json
 {
-  "model": "gpt-4o", 
-  "prompt": "Explain Kafka in one sentence.",
-  "system": "You are a helpful assistant."
+  "query": "kafka architecture",
+  "documents": [
+    { "id": 1, "text": "Basic Kafka intro..." },
+    { "id": 2, "text": "Deep dive into Kafka brokers..." }
+  ]
 }
 ```
 
-#### Response
+### B. Query Analysis
+**Endpoint**: `POST /v1/analyze`
+Extracts intent and expands synonyms.
+
 ```json
 {
-  "content": "Kafka is a distributed event streaming platform used for building real-time data pipelines.",
-  "provider": "OpenAIProvider"
+  "query": "who is the CEO of OctaneBrew?"
 }
 ```
 
-### B. Embeddings
-**Endpoint**: `POST /v1/embeddings`
-**Description**: Generates vector embeddings.
+### C. Chat & Embeddings
+*   `POST /v1/chat/completions`: Standardized LLM completions.
+*   `POST /v1/embeddings`: Batch vector generation for indexing.
 
 ---
 
@@ -88,8 +116,7 @@ The service protects upstream quotas using a **Token Bucket** algorithm implemen
 | Env Var | Default | Description |
 |---------|---------|-------------|
 | `ACTIVE_PROVIDER` | `gemini` | Current default LLM provider |
-| `GOOGLE_API_KEY` | - | Gemini API Key |
-| `OPENAI_API_KEY` | - | OpenAI API Key |
+| `RERANKER_MODEL` | `ms-marco-MiniLM-L-12-v2` | FlashRank model to use |
 | `AI_MODELS` | (JSON) | Model capability registry |
 | `REDIS_URL` | `redis://redis:6379` | Rate Limiter backend |
 
@@ -98,4 +125,4 @@ The service protects upstream quotas using a **Token Bucket** algorithm implemen
 ## 6. Observability
 
 - **Metrics**: `http://localhost:8000/metrics` (Prometheus format).
-- **Tracing**: OpenTelemetry (Propagates `trace_id` from Ingestion API).
+- **Tracing**: OpenTelemetry support for end-to-end request tracking across ingestion and search.

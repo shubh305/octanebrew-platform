@@ -4,46 +4,41 @@
 
 The **Ingestion Service** is the high-throughput entry point for content into the OctaneBrew platform. It transforms unstructured data (articles, video transcripts, raw HTML) into structured, biologically-inspired "knowledge atoms" (vectors) optimized for semantic search and retrieval augmented generation (RAG).
 
-It employs a **Two-Pass Architecture** coupled with a **Persistent Oplog** pattern. This ensures:
-1.  **Zero Data Loss**: Even if AI providers (OpenAI/Gemini) are down, content is safely captured.
-2.  **Instant Availability**: Content is searchable by keyword immediately (Pass 1), while vectors arrive asynchronously (Pass 2).
-3.  **Resiliency**: Failed AI jobs are automatically retried with exponential backoff.
+It employs a **Hybrid Processing Pipeline** that combines immediate keyword indexing with asynchronous AI enrichment and multi-phase semantic search retrieval.
 
 ---
 
-## 2. Design Decisions: Multiple workers for scalability and resiliency
+## 2. Design Decisions: Scalability and Resiliency
 
-### A. Separation of Concerns (Scalability)
-*   **Ingestion API (`ingestion-svc`)**: An **I/O bound** service. It accepts HTTP requests and acknowledges them immediately by pushing to Kafka.
-*   **Ingestion Worker (`ingestion-worker`)**: A **CPU bound** consumer. It handles HTML sanitization and immediate text indexing.
-*   **AI Oplog Worker (`ai-oplog-worker`)**: A **Latency bound** worker. LLM calls are slow. By isolating them, valid text is searchable *instantly*, while vectors arrive whenever the AI finishes.
+### A. Two-Pass Architecture
+1.  **Pass 1 (Immediate)**: Content is sanitized and indexed into Elasticsearch for instant keyword search.
+2.  **Pass 2 (Asynchronous)**: AI Oplog Worker polls Postgres for pending tasks, computes embeddings via the Intelligence service, and updates the vector space.
 
-### B. Artifact Strategy (Single Docker Image)
-All three components share the **same Docker image** for simplified deployment but execute specialized entrypoints:
-*   **API**: `uvicorn ingestion.main:app`
-*   **Worker**: `python -m ingestion.consumer`
-*   **AI Worker**: `python -m ingestion.worker`
+### B. Multi-Phase Search Path
+To ensure high recall and precision, the search engine utilizes:
+*   **Query Intelligence**: Detects language, translates non-English queries, and extracts entities for boosting.
+*   **Hybrid Retrieval**: Combines BM25 keyword scores and kNN vector scores.
+*   **Cross-Encoder Reranking**: Re-orders the top results using a deep semantic model to filter out false positives.
 
 ---
 
 ## 3. Project Structure 
 
-The service follows a modular design pattern for high maintainability.
-
 ```text
 src/ingestion/
-├── core/                   # Infrastructure & Shared Internal Logic
-│   ├── lifespan.py         # Async Lifecycle (Redis, Kafka, ES init)
-│   ├── limiter.py          # Token Bucket Rate Limiter (Lua-backed)
-│   ├── observability.py    # Metrics (Prometheus) & Tracing (OTel)
-│   └── security.py         # API Key Authentication
-├── routers/                # API Endpoint Logic
-│   ├── ingest.py           # Content Ingestion (POST /ingest)
-│   └── search.py           # Hybrid Search (POST /search)
-├── processors/             # Domain Logic (Sanitization, Chunks, AI)
+├── core/                   # Infrastructure
+│   ├── lifespan.py         # Async Lifecycle
+│   ├── limiter.py          # Redis Rate Limiter
+│   └── observability.py    # Metrics (Prometheus) & Tracing (OTel)
+├── routers/                # API Logic
+│   ├── ingest.py           # Content Ingestion
+│   └── search.py           # Multi-Phase Semantic Search
+├── processors/             # Domain Logic
+│   ├── indexer.py          # Elasticsearch Sync Logic
+│   ├── intelligence.py     # AI Client Wrapper
+│   └── prompts.py          # Specialized AI Instructions
 ├── models.py               # Pydantic Schemas
-├── config.py               # Environment Configuration
-└── main.py                 # Minimalist Entry Point
+└── config.py               # System Configuration
 ```
 
 ---
@@ -52,54 +47,63 @@ src/ingestion/
 
 ```mermaid
 graph TD
-    User -->|POST /ingest| API[Ingest API]
-    API -->|Validation| Kafka{Kafka: octane.ingest.requests}
+    Downstream-Service -->|POST /ingest| API[Ingest API]
+    API -->|Validation| Kafka{Kafka}
     
-    subgraph "Pass 1: Immediate Consistency"
+    subgraph "Phase 1: Ingestion & Enrichment"
         Kafka -->|Consume| Consumer[Ingestion Worker]
-        Consumer -->|Sanitize HTML| Consumer
+        Consumer -->|Sanitize| Consumer
         Consumer -->|Index Text| Elastic[(Elasticsearch)]
-        Consumer -->|Create Job| DB[(Postgres Oplog)]
+        Consumer -->|Oplog| DB[(Postgres)]
+        DB -->|Poll| AIWorker[AI Oplog Worker]
+        AIWorker -->|Embed| Intelligence[Intelligence Service]
+        Intelligence -->|Vector Sync| Elastic
     end
     
-    subgraph "Pass 2: AI Enrichment"
-        JobWorker[AI Oplog Worker] -->|Poll| DB
-        JobWorker -->|Compute Chunks| Chunking[Text Chunker]
-        JobWorker -->|Embed & Summarize| Intelligence[Intelligence Service]
-        Intelligence -->|LLM Calls| Providers(Gemini / OpenAI)
-        JobWorker -->|Update Vectors| Elastic
+    subgraph "Phase 2: Semantic Search"
+        S[POST /search] -->|1. Rate Limit| Redis[(Redis)]
+        S -->|2. Analyze Query| Intelligence
+        Intelligence -->|3. Hybrid Retrieval| Elastic
+        Elastic -->|4. Documents| S
+        S -->|5. Rerank Docs| Intelligence
+        Intelligence -->|6. Final Result| Downstream-Service
     end
-
-    JobWorker -->|Notify| ResultQueue{Kafka: octane.ingest.results}
 ```
 
 ---
 
-## 5. Resiliency & Reliability
+## 5. Resilience & Infrastructure Stability
 
-*   **Persistent Oplog**: The `ai_oplog` table acts as a reliable state machine. All AI tasks start as `PENDING`.
-*   **Exponential Backoff**: Failed jobs retry using `delay = 2^retry_count * 60 seconds`.
-*   **Token Bucket Rate Limiting**: 
-    *   `POST /search` is limited to **300 requests/minute** (burst support up to capacity).
-    *   Implementation uses atomic Redis Lua scripts for accuracy.
-    *   Inspect state: `docker exec redis redis-cli HGETALL "rate_limit:search:<CLIENT_IP>"`
+The Ingestion service acts as the platform's primary shield, ensuring that high-volume content ingestion or search spikes do not degrade the core infrastructure.
+
+### A. Distributed Rate Limiting (Token Bucket)
+To protect Elasticsearch and upstream Intelligence resources, the `/search` and `/ingest` endpoints utilize a Redis-backed **Token Bucket** algorithm.
+*   **Lua-Powered Accuracy**: Uses atomic Redis Lua scripts to ensure consistency across multiple API instances.
+*   **Burst Support**: Allows for temporary traffic bursts up to bucket capacity while maintaining a steady-state refill rate.
+*   **Client Isolation**: Prevents a single "noisy neighbor" (e.g., a specific spoke app) from exhausting global platform resources.
+
+### B. Persistent Oplog Pattern
+AI enrichment is decoupled from the primary ingestion flow via a Postgres-backed **Oplog**. This ensures:
+*   **Zero Data Loss**: Content is safely stored in Postgres even if AI providers are unreachable.
+*   **Recoverability**: Failed jobs are automatically retried with exponential backoff.
+*   **Stateful Tracking**: Every enrichment step is versioned and trackable through the system logs.
 
 ---
 
 ## 6. Key Technical Features
 
-### A. Entity-Aware Summarization
-The system uses specialized prompts in `src/ingestion/processors/prompts.py`:
-*   **Video Transcripts**: Focuses on "Key Moments" and "Topics".
-*   **Articles**: Focuses on "Thesis" and "Key Concepts".
-*   **Default**: Generic and concise for summarization.
+### A. Advanced Search Optimization
+*   **Vector Thresholding**: Drops vector matches below a certain cosine similarity to maintain relevancy.
+*   **Entity Boosting**: Increases the score of documents containing entities extracted from the query.
+*   **Flash-Reranking**: Integrates cross-encoders to achieve "state-of-the-art" precision in the top 10 results.
 
-### B. Hybrid Search (Keyword + Vector)
-Utilizes **Linear Boosted Hybrid Search** to combine semantic vector scores with traditional BM25 keyword rankings.
+### B. Resilience & Reliability
+*   **Exponential Backoff**: Failed AI jobs are automatically retried via the Oplog state machine.
+*   **I/O Isolation**: API is non-blocking; the heavy lifting occurs in workers isolated by Kafka topics.
 
 ---
 
-## 7. API Reference
+## 6. API Reference
 
 ### `POST /ingest`
 Queues content for processing. Requires `X-API-KEY`.
@@ -117,34 +121,35 @@ Queues content for processing. Requires `X-API-KEY`.
     "content": "Speaker 1: Welcome to the stream...",
     "url": "https://..."
   },
-  "enrichments": ["summary"]
+  "enrichments": ["summary", "vectors"]
 }
 ```
 
 ### `POST /search`
-Performs Hybrid Search. Rate limit: 60/min.
+Performs Multi-Phase Hybrid Search.
 
+**Payload:**
 ```json
 {
   "query": "kafka architecture",
   "limit": 10,
-  "filters": { "entity_type": "video_transcript" },
   "use_hybrid": true,
-  "return_chunks": true
+  "enable_query_analysis": true,
+  "enable_reranking": true,
+  "min_score": 25.0,
+  "vector_threshold": 0.65
 }
 ```
 
 ---
 
-## 8. Configuration
+## 7. Configuration
 
 | Variable | Default/Description |
 |----------|---------------------|
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka Broker address |
 | `ES_HOST` | Elasticsearch URL |
-| `SERVICE_API_KEY` | Shared Internal Auth Key |
-| `SUMMARY_MODEL` | Maps to Gemini 1.5 Flash by default |
-| `EMBEDDING_MODEL` | `models/gemini-embedding-001` |
-| `REDIS_URL` | Redis for Rate Limiting |
+| `INTELLIGENCE_URL` | Endpoint for AI Orchestrator |
+| `SEARCH_RATE_LIMIT` | Requests per minute (default: 60) |
 
 ---
