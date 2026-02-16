@@ -152,41 +152,6 @@ services:
     networks:
       - octane-net
 
-  connect:
-    image: confluentinc/cp-kafka-connect:${CONFLUENT_VERSION}
-    container_name: connect
-    depends_on:
-      - kafka
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-      CONNECT_REST_ADVERTISED_HOST_NAME: connect
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: compose-connect-group
-      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      # SASL AUTH FOR CONNECT
-      CONNECT_SECURITY_PROTOCOL: SASL_PLAINTEXT
-      CONNECT_SASL_MECHANISM: PLAIN
-      CONNECT_PRODUCER_SECURITY_PROTOCOL: SASL_PLAINTEXT
-      CONNECT_PRODUCER_SASL_MECHANISM: PLAIN
-      CONNECT_CONSUMER_SECURITY_PROTOCOL: SASL_PLAINTEXT
-      CONNECT_CONSUMER_SASL_MECHANISM: PLAIN
-      CONNECT_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
-      CONNECT_PRODUCER_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
-      CONNECT_CONSUMER_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
-    volumes:
-      - /mnt/data/connect/plugins:/usr/share/confluent-hub-components
-    networks:
-      - octane-net
   kafka-ui:
     image: kafbat/kafka-ui:${KAFBAT_VERSION}
     container_name: kafka-ui
@@ -200,11 +165,8 @@ services:
       KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: SASL_PLAINTEXT
       KAFKA_CLUSTERS_0_PROPERTIES_SASL_MECHANISM: PLAIN
       KAFKA_CLUSTERS_0_PROPERTIES_SASL_JAAS_CONFIG: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_BROKER_USER}\" password=\"${KAFKA_BROKER_PASS}\";"
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: 'OpenStream-Connect'
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: 'http://connect:8083'
     depends_on:
       - kafka
-      - connect
     networks:
       - octane-net
 
@@ -398,7 +360,7 @@ services:
     image: clickhouse/clickhouse-server
     container_name: clickhouse
     volumes:
-      - ./data/clickhouse:/var/lib/clickhouse
+      - /mnt/data/clickhouse:/var/lib/clickhouse
     ports:
       - "8001:8123"
       - "8002:9000"
@@ -500,40 +462,7 @@ services:
       - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
       - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
       - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
-      - ES_HOST=${ES_HOST}
-      - ELASTIC_USER=${ELASTIC_USER}
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - EMBEDDING_DIMS=${EMBEDDING_DIMS}
-      - ES_INDEX_NAME=${ES_INDEX_NAME}
-      - INTELLIGENCE_SVC_URL=http://intelligence-svc:8000
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - SERVICE_API_KEY=${SERVICE_API_KEY}
-      - POSTGRES_DSN=${POSTGRES_DSN}
-      - SUMMARY_MODEL=${SUMMARY_MODEL}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
-    depends_on:
-      - kafka
-      - elasticsearch
-      - intelligence-svc
-      - redis
-    networks:
-      - octane-net
-    # extra_hosts:
-    #  - "broker.octanebrew.dev:129.154.43.166"
-    #  - "elastic.octanebrew.dev:172.67.169.35"
-
-  ingestion-worker:
-    build: 
-      context: ./services/ingestion
-      dockerfile: Dockerfile
-    container_name: ingestion-worker
-    command: ["uv", "run", "python", "-m", "ingestion.consumer"]
-    environment:
-      - PYTHONUNBUFFERED=1
-      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
-      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
-      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
-      - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
+      - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
       - ES_HOST=${ES_HOST}
       - ELASTIC_USER=${ELASTIC_USER}
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
@@ -552,9 +481,45 @@ services:
       - redis
     networks:
       - octane-net
-    # extra_hosts:
-    #  - "broker.octanebrew.dev:129.154.43.166"
-    #  - "elastic.octanebrew.dev:172.67.169.35"
+    extra_hosts:
+     - "broker.octanebrew.dev:129.154.43.166"
+     - "elastic.octanebrew.dev:172.67.169.35"
+
+  ingestion-worker:
+    build: 
+      context: ./services/ingestion
+      dockerfile: Dockerfile
+    container_name: ingestion-worker
+    command: ["uv", "run", "python", "-m", "ingestion.consumer"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
+      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
+      - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
+      - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
+      - KAFKA_GROUP_ID=${INGESTION_KAFKA_GROUP_ID}
+      - ES_HOST=${ES_HOST}
+      - ELASTIC_USER=${ELASTIC_USER}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - EMBEDDING_DIMS=${EMBEDDING_DIMS}
+      - ES_INDEX_NAME=${ES_INDEX_NAME}
+      - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - SUMMARY_MODEL=${SUMMARY_MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+    depends_on:
+      - kafka
+      - elasticsearch
+      - intelligence-svc
+      - redis
+    networks:
+      - octane-net
+    extra_hosts:
+     - "broker.octanebrew.dev:129.154.43.166"
+     - "elastic.octanebrew.dev:172.67.169.35"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s
@@ -569,6 +534,7 @@ services:
     command: ["uv", "run", "python", "-m", "ingestion.worker"]
     environment:
       - PYTHONUNBUFFERED=1
+      - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
       - ES_HOST=${ES_HOST}
       - ELASTIC_USER=${ELASTIC_USER}
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
@@ -589,8 +555,8 @@ services:
       - postgres
     networks:
       - octane-net
-    # extra_hosts:
-    #  - "elastic.octanebrew.dev:172.67.169.35"
+    extra_hosts:
+     - "elastic.octanebrew.dev:172.67.169.35"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s

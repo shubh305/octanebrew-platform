@@ -6,9 +6,19 @@ function loadStream() {
   const player = videojs("live-player");
   const src = `https://octanebrew.dev/video/live/${key}.m3u8`;
 
-  console.log(`Loading stream: ${src}`);
+  const connectingOverlay = document.getElementById("connecting-overlay");
+  const endedOverlay = document.getElementById("ended-overlay");
+  if (connectingOverlay) connectingOverlay.classList.remove("hidden");
+  if (endedOverlay) endedOverlay.classList.add("hidden");
+
   player.src({ type: "application/x-mpegURL", src: src });
   player.play();
+
+  setTimeout(() => {
+    if (player.paused() || player.error()) {
+      player.trigger("error");
+    }
+  }, 15000);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -20,52 +30,42 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => loadStream(), 500);
   }
 
-  // --- Dynamic Footer Logic & Standby Overlay ---
+  // --- Dynamic Stats & Standby Overlay ---
   const player = videojs("live-player");
-  const statusEl = document.getElementById("spec-status");
-  const codecEl = document.getElementById("spec-codec");
   const timeEl = document.getElementById("spec-time");
   const overlay = document.getElementById("standby-overlay");
-  const led = document.getElementById("status-led");
-
-  function setLed(state) {
-    if (!led) return;
-    led.classList.remove("status-red", "status-green", "status-yellow");
-    if (state === "active") led.classList.add("status-green");
-    else if (state === "buffering") led.classList.add("status-yellow");
-    else led.classList.add("status-red");
-  }
 
   // Clock
   setInterval(() => {
     const now = new Date();
-    timeEl.innerText = "UTC: " + now.toISOString().split("T")[1].split(".")[0];
+    if (timeEl) {
+      timeEl.innerText = now.toISOString().split("T")[1].split(".")[0];
+    }
   }, 1000);
 
   player.on("playing", () => {
-    statusEl.innerHTML = 'STATUS: <span class="blink" style="color: var(--accent)">RECEIVING</span>';
-    codecEl.innerText = "CODEC: H.264/AAC";
-    overlay.classList.add("hidden");
-    setLed("active");
+    if (overlay) overlay.classList.add("hidden");
+    const connectingOverlay = document.getElementById("connecting-overlay");
+    if (connectingOverlay) connectingOverlay.classList.add("hidden");
   });
 
-  player.on("pause", () => {
-    statusEl.innerHTML = 'STATUS: <span style="color: #888">PAUSED</span>';
-    setLed("idle");
+  player.on("canplaythrough", () => {
+    if (overlay) overlay.classList.add("hidden");
+    const connectingOverlay = document.getElementById("connecting-overlay");
+    if (connectingOverlay) connectingOverlay.classList.add("hidden");
   });
 
   player.on("error", () => {
-    statusEl.innerHTML = 'STATUS: <span style="color: red">SIGNAL LOST</span>';
-    codecEl.innerText = "CODEC: ERR";
-    overlay.classList.remove("hidden");
-    setLed("idle");
-  });
+    const connectingOverlay = document.getElementById("connecting-overlay");
+    const endedOverlay = document.getElementById("ended-overlay");
 
-  player.on("waiting", () => {
-    statusEl.innerHTML = 'STATUS: <span class="blink" style="color: yellow">BUFFERING</span>';
-    setLed("buffering");
-  });
+    if (connectingOverlay) connectingOverlay.classList.add("hidden");
+    if (endedOverlay) endedOverlay.classList.remove("hidden");
+    if (overlay) overlay.classList.add("hidden");
 
+    player.pause();
+    player.src("");
+  });
 });
 
 function togglePower() {

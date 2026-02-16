@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCTANEBREW // LIVE</title>
+    <title>OCTANEBREW // PLATFORM HUB</title>
+    <link rel="icon" type="image/png" href="favicon.png">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <link href="style.css" rel="stylesheet" />
 </head>
@@ -11,58 +12,275 @@
 
 <header>
     <a href="/" style="text-decoration: none; color: inherit;"><h1>OCTANEBREW</h1></a>
-    <div class="subtitle">PLATFORM // <span class="blink">ONLINE</span></div>
+    <div class="subtitle">DISTRIBUTED_CORE // <span class="blink">OPERATIONAL</span></div>
 </header>
 
 <div class="container">
-    <div class="crt-monitor">
-        <div class="monitor-casing">
-            <div class="monitor-bezel">
-                <div class="crt-screen">
-                    <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" poster="" data-setup='{}'>
-                        <p class="vjs-no-js">
-                            To view this video please enable JavaScript, and consider upgrading to a web browser that
-                            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                        </p>
-                    </video>
-                    
-                    <div id="standby-overlay">
-                        <div class="scanline"></div>
-                        <div class="glitch-wrapper">
-                            <div class="glitch" data-text="SIGNAL LOST">SIGNAL LOST</div>
-                            <div class="subtext">WAITING FOR UPLINK...</div>
-                        </div>
-                        <div class="radar"></div>
-                    </div>
+    <div class="hero-deck">
+        <div class="deck-main">
+            <div class="deck-content">
+                <div class="status-tag">SYSTEM_STATUS: ACTIVE</div>
+                <h2 class="hero-title">DISTRIBUTED // <br>OCTANEBREW</h2>
+                <p class="hero-sub" style="margin-bottom: 1.5rem; max-width: 600px;">
+                    An enterprise-grade hub-and-spoke infrastructure powering decentralized content spokes. 
+                    Engineered with high-performance event buses and polyglot persistence to deliver intelligence at scale.
+                    The platform serves as the administrative command center for stateful service mesh orchestration, 
+                    unifying real-time data ingestion with advanced AI enrichment, automated media processing, 
+                    and deep-archive telemetry across the entire global ecosystem.
+                </p>
 
-                    <div class="crt-glass"></div>
+                <div class="showcase-tech" style="margin-top: 0; margin-bottom: 2rem;">
+                    <span>DOCKER</span>
+                    <span>KAFKA</span>
+                    <span>ELASTICSEARCH</span>
+                    <span>MONGODB</span>
+                    <span>CLICKHOUSE</span>
+                    <span>REDIS</span>
+                    <span>POSTGRES</span>
+                </div>
+                
+                <div class="hero-actions">
+                    <a href="https://github.com/shubh305/octanebrew-platform" target="_blank" class="btn primary">OCTANEBREW_SOURCE</a>
                 </div>
             </div>
             
-            <div class="monitor-controls">
-                <div class="control-group left">
-                    <div id="status-led" class="led status-red"></div>
+            <div class="deck-visual">
+                <div class="monitor-minified">
+                    <div class="crt-screen">
+                        <video id="live-player" class="video-js vjs-fluid vjs-big-play-centered" controls preload="auto" poster="" data-setup='{}'>
+                            <p class="vjs-no-js">To view video please enable JavaScript.</p>
+                        </video>
+                        <div id="standby-overlay">
+                            <div class="scanline"></div>
+                            <div class="glitch-wrapper">
+                                <div class="glitch" data-text="LIVE_FEED">STREAM_OFFLINE</div>
+                                <div class="subtext">WAITING_FOR_UPLINK</div>
+                            </div>
+                            <div class="radar"></div>
+                        </div>
+
+                        <div id="connecting-overlay" class="hidden">
+                            <div class="spinner"></div>
+                            <span class="overlay-text">CONNECTING_TO_UPLINK...</span>
+                        </div>
+
+                        <div id="ended-overlay" class="hidden">
+                            <div class="ended-icon">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <span class="ended-title">STREAM_OFFLINE</span>
+                            <span class="ended-sub">THE_TRANSMISSION_HAS_CONCLUDED.</span>
+                        </div>
+
+                        <div class="crt-glass"></div>
+                    </div>
+                    <div class="monitor-label">UPLINK_MONITOR // 01</div>
+                    <div class="monitor-connect">
+                        <input type="text" id="stream-key-input" placeholder="STREAM_KEY" autocomplete="off">
+                        <button onclick="loadStream()" class="connect-btn">UPLINK</button>
+                    </div>
                 </div>
-                <div class="control-group right">
-                    <div class="power-btn" onclick="togglePower()"></div>
+            </div>
+        </div>
+        
+        <div class="deck-vitals">
+            <div class="vital-item">
+                <span class="vital-label">NETWORK</span>
+                <span class="vital-value" style="color: #00ff41">SECURE</span>
+            </div>
+            <div class="vital-item">
+                <span class="vital-label">LATENCY</span>
+                <span class="vital-value">24MS</span>
+            </div>
+            <div class="vital-item">
+                <span class="vital-label">AI_ENGINE</span>
+                <span class="vital-value">GEMINI</span>
+            </div>
+            <div class="vital-item">
+                <span class="vital-label" id="spec-time-label">T-MINUS</span>
+                <span class="vital-value" id="spec-time">10:10:52</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">PROJECTS // UPLINKS</div>
+    <div class="projects-grid">
+        <div class="project-showcase">
+            <a href="https://openstream.octanebrew.dev" target="_blank" class="showcase-img">
+                <img src="openstream.png" alt="OpenStream Desktop">
+                <div class="showcase-overlay"></div>
+            </a>
+            <div class="showcase-content">
+                <div class="showcase-header">
+                    <span class="showcase-name">OPENSTREAM</span>
+                    <span class="showcase-tag">LIVE_PLATFORM</span>
+                </div>
+                <p>
+                  A flagship video delivery engine engineered for high-throughput, real-time streaming at scale. 
+                  Supporting <strong>hybrid ingest pipelines (RTMP/WebSockets)</strong>, the platform leverages 
+                  <strong>Kafka-orchestrated FFmpeg worker clusters</strong> for distributed adaptive-bitrate 
+                  transcoding, automated recording, and VOD archival. With optimized packaging and CDN delivery, 
+                  it achieves <strong>sub-5-second HLS latency</strong> while maintaining resilient, fault-tolerant 
+                  live streaming and playback across global audiences.
+                </p>                
+                <div class="showcase-tech">
+                    <span>NESTJS</span>
+                    <span>REACT</span>
+                    <span>MINIO</span>
+                    <span>FFMPEG</span>
+                    <span>KAFKA</span>
+                    <span>MONGODB</span>
+                </div>
+                <div class="showcase-links">
+                    <a href="https://github.com/shubh305/openstream-backend" target="_blank" class="link-btn github">BACKEND_SOURCE</a>
+                    <a href="https://github.com/shubh305/openstream-frontend" target="_blank" class="link-btn github">FRONTEND_SOURCE</a>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="project-showcase">
+            <a href="https://conduit.octanebrew.dev" target="_blank" class="showcase-img">
+                <img src="conduit.png" alt="Conduit Platform">
+                <div class="showcase-overlay"></div>
+            </a>
+            <div class="showcase-content">
+                <div class="showcase-header">
+                    <span class="showcase-name">CONDUIT</span>
+                    <span class="showcase-tag">CONTENT_NETWORK</span>
+                </div>
+                <p>
+                  <strong>Conduit</strong> is a high-scale, multi-tenant publishing engine built on a 
+                  <strong>database-per-tenant</strong> architecture with <strong>Next.js Edge Middleware</strong> 
+                  enabling real-time subdomain-based tenant resolution. It features the <strong>Fluidic UI Engine</strong>, 
+                  a polymorphic design system using HSL-driven theme interpolation, integrated with an 
+                  <strong>asynchronous NLP enrichment pipeline</strong> and <strong>semantic vector search</strong> 
+                  to deliver enterprise-grade performance alongside adaptive, immersive user experiences.
+                </p>
+               <div class="showcase-tech">
+                    <span>NEXTJS</span>
+                    <span>REACT</span>
+                    <span>ELASTICSEARCH</span>
+                    <span>MONGODB</span>
+                    <span>MINIO</span>
+                </div>
+                <div class="showcase-links">
+                    <a href="https://github.com/shubh305/conduit-core" target="_blank" class="link-btn github">BACKEND_SOURCE</a>
+                    <a href="https://github.com/shubh305/conduit-frontend" target="_blank" class="link-btn github">FRONTEND_SOURCE</a>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="control-panel">
-        <span class="prompt">$ stream --connect</span>
-        <input type="text" id="stream-key-input" placeholder="Stream Key" autocomplete="off">
-        <button onclick="loadStream()" class="btn">SUBMIT</button>
+    <div class="section-title">ENGINE_CORE // SHARED_SERVICES</div>
+    <div class="services-compact-grid">
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">INTELLIGENCE</span>
+                <span class="showcase-tag">AI_ORCHESTRATOR</span>
+            </div>
+            <p class="service-desc">
+                Structured entity extraction, semantic query analysis, and high-speed cross-encoder reranking via unified AI provider factory and direct LLM orchestration.
+            </p>
+            <div class="showcase-tech">
+                <span>GEMINI</span><span>OPENAI</span><span>FLASH_RANK</span><span>ONNX</span><span>REDIS</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/intelligence" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
+
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">INGESTION</span>
+                <span class="showcase-tag">EVENT_PIPELINE</span>
+            </div>
+            <p class="service-desc">
+                Distributed engine for stage-based content enrichment, smart chunking, and automated Elasticsearch vector indexing with integrated intelligence hooks.
+            </p>
+            <div class="showcase-tech">
+                <span>KAFKA</span><span>FASTAPI</span><span>ELASTICSEARCH</span><span>POSTGRES</span><span>REDIS</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/ingestion" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
+
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">DICTIONARY</span>
+                <span class="showcase-tag">LINGUISTIC_NODE</span>
+            </div>
+            <p class="service-desc">
+                Linguistic logic engine for multi-language lookups, JMDict integration, and grammar validation using lean NLTK-based processing for low latency.
+            </p>
+            <div class="showcase-tech">
+                <span>JAMDICT</span><span>TEXTBLOB</span><span>GOOGLETRANS</span><span>INFLECT</span><span>REDIS</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/dictionary-service" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
+
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">STORAGE</span>
+                <span class="showcase-tag">BLOB_MANAGER</span>
+            </div>
+            <p class="service-desc">
+                S3-compatible interface for multi-tenant media orchestration with strict bucket isolation, automated presigning, and high-concurrency retrieval.
+            </p>
+            <div class="showcase-tech">
+                <span>MINIO</span><span>S3_API</span><span>FASTAPI</span><span>DOCKER</span><span>UV</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/storage-service" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
+
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">ANALYTICS*</span>
+                <span class="showcase-tag">DATA_WAREHOUSE</span>
+            </div>
+            <p class="service-desc">
+                Pure background worker consuming high-volume Kafka telemetry for batch ingestion into ClickHouse OLAP storage for real-time reporting.
+            </p>
+            <div class="showcase-tech">
+                <span>CLICKHOUSE</span><span>KAFKA</span><span>KAFKA_JS</span><span>PYTHON</span><span>UV</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/analytics" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
+
+        <div class="project-showcase service-card">
+            <div class="showcase-header">
+                <span class="showcase-name">COMPUTE</span>
+                <span class="showcase-tag">WORKER_MESH</span>
+            </div>
+            <p class="service-desc">
+                Headless compute nodes for distributed FFmpeg transcoding, adaptive HLS packaging, and automated real-time archival for live streams.
+            </p>
+            <div class="showcase-tech">
+                <span>FFMPEG</span><span>NESTJS</span><span>NODEJS</span><span>DOCKER</span><span>REDIS</span>
+            </div>
+            <div class="showcase-links">
+                <a href="https://github.com/shubh305/octanebrew-platform/tree/main/services/ffmpeg-worker" target="_blank" class="link-btn github">SOURCE_CODE</a>
+            </div>
+        </div>
     </div>
 
+    <div class="section-title">INFRASTRUCTURE_NODES // TELEMETRY</div>
     <div class="dashboard">
         <a href="https://grafana.octanebrew.dev" class="card" target="_blank">
             <span class="card-title">Grafana</span>
             <span class="card-desc">System Observability</span>
         </a>
         <a href="https://kafka.octanebrew.dev" class="card" target="_blank">
-            <span class="card-title">Kafka Connect</span>
+            <span class="card-title">Kafka UI</span>
             <span class="card-desc">Event Stream Inspection</span>
         </a>
         <a href="https://kibana.octanebrew.dev" class="card" target="_blank">
@@ -74,14 +292,17 @@
             <span class="card-desc">Ingest Link Diagnostics</span>
         </a>
     </div>
-
-    <div class="specs">
-        <div id="spec-status">STATUS: <span style="color: #888">STANDBY</span></div>
-        <div id="spec-codec">CODEC: NULL</div>
-        <div id="spec-uplink">UPLINK: <span style="color: green">SECURE</span></div>
-        <div id="spec-time">T-MINUS: 00:00:00</div>
-    </div>
 </div>
+
+<footer>
+    <div class="footer-content">
+        <div class="footer-logo">OCTANEBREW // 2026</div>
+        <div class="footer-status">
+            <span class="pulse"></span> UPLINK_STABLE // SECURE_HANDSHAKE
+        </div>
+        <div class="footer-credit">DEVELOPED_BY_SHUBHAM // ASSEMBLED_IN_VOID</div>
+    </div>
+</footer>
 
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 <script src="script.js"></script>
