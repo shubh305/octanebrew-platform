@@ -71,7 +71,6 @@ services:
     container_name: ffmpeg-worker
     volumes:
       - /mnt/data/minio/data:/minio_data:rw
-      - /usr/src/app/node_modules
     environment:
       - KAFKA_BROKERS=${KAFKA_BOOTSTRAP_SERVERS}
       - FFMPEG_PATH=/usr/bin/ffmpeg
