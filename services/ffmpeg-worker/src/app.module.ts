@@ -24,6 +24,13 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
                   'broker.octanebrew.dev:8084',
                 ),
               ],
+              sasl: configService.get('KAFKA_SASL_USER')
+                ? {
+                    mechanism: 'plain',
+                    username: configService.get<string>('KAFKA_SASL_USER')!,
+                    password: configService.get<string>('KAFKA_SASL_PASS')!,
+                  }
+                : undefined,
               connectionTimeout: 10000,
               requestTimeout: 30000,
             },
