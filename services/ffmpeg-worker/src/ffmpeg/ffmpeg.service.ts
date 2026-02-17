@@ -68,13 +68,14 @@ export class FFmpegService implements OnModuleInit {
         await this.generateThumbnail(inputPath, thumbnailPath);
 
         if (fs.existsSync(thumbnailPath)) {
+          const s3ThumbnailKey = `thumbnails/${thumbnailFilename}`;
           this.logger.log(
-            `Uploading thumbnail to gRPC Storage: ${thumbnailFilename}`,
+            `Uploading thumbnail to gRPC Storage: ${s3ThumbnailKey}`,
           );
           const thumbBuffer = fs.readFileSync(thumbnailPath);
           const { url } = await firstValueFrom<{ url: string }>(
             this.storageService.upload({
-              filename: thumbnailFilename,
+              filename: s3ThumbnailKey,
               data: thumbBuffer,
               bucket: this.bucket,
               mimeType: 'image/jpeg',
@@ -98,19 +99,20 @@ export class FFmpegService implements OnModuleInit {
       await this.transcodeVideo(inputPath, mp4Path);
 
       // 4. Upload MP4 via gRPC
+      const s3VideoKey = `videos/${mp4Filename}`;
       this.logger.log(
-        `Uploading MP4 to gRPC Storage bucket '${this.bucket}': ${mp4Filename}`,
+        `Uploading MP4 to gRPC Storage bucket '${this.bucket}': ${s3VideoKey}`,
       );
       const videoBuffer = fs.readFileSync(mp4Path);
       const { url: videoUrl } = await firstValueFrom<{ url: string }>(
         this.storageService.upload({
-          filename: mp4Filename,
+          filename: s3VideoKey,
           data: videoBuffer,
           bucket: this.bucket,
           mimeType: 'video/mp4',
         }),
       );
-      this.logger.log(`Upload complete for ${mp4Filename}: ${videoUrl}`);
+      this.logger.log(`Upload complete for ${s3VideoKey}: ${videoUrl}`);
 
       // Clean up MP4
       if (fs.existsSync(mp4Path)) fs.unlinkSync(mp4Path);
@@ -118,7 +120,7 @@ export class FFmpegService implements OnModuleInit {
       // 5. Emit Result
       const completionPayload = {
         streamKey,
-        filename: mp4Filename,
+        filename: s3VideoKey,
         path: videoUrl,
         thumbnail: thumbnailUploaded ? thumbnailUrl : '',
         duration: duration,
