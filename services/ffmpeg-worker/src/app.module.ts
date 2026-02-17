@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { join } from 'path';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 
@@ -37,6 +38,27 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
             consumer: {
               groupId: 'worker-producer',
             },
+          },
+        }),
+        inject: [ConfigService],
+      },
+      {
+        name: 'STORAGE_SERVICE',
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'storage',
+            protoPath: join(__dirname, 'storage.proto'),
+            url: configService.get<string>(
+              'STORAGE_SERVICE_URL',
+              'storage-service:50051',
+            ),
+            loader: {
+              keepCase: true,
+            },
+            maxSendMessageLength: 1024 * 1024 * 1024,
+            maxReceiveMessageLength: 1024 * 1024 * 1024,
           },
         }),
         inject: [ConfigService],

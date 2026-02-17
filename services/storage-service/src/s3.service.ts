@@ -6,6 +6,7 @@ import {
   HeadBucketCommand,
   CreateBucketCommand,
   GetObjectCommand,
+  PutBucketPolicyCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -76,6 +77,33 @@ export class S3Service {
     }
   }
 
+  private async setPublicBucketPolicy(bucket: string): Promise<void> {
+    const policy = {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Sid: "PublicReadGetObject",
+          Effect: "Allow",
+          Principal: "*",
+          Action: ["s3:GetObject"],
+          Resource: [`arn:aws:s3:::${bucket}/*`],
+        },
+      ],
+    };
+
+    try {
+      await this.s3Client.send(
+        new PutBucketPolicyCommand({
+          Bucket: bucket,
+          Policy: JSON.stringify(policy),
+        }),
+      );
+      this.logger.log(`Set public read policy for bucket ${bucket}`);
+    } catch (e) {
+      this.logger.error(`Failed to set bucket policy: ${e.message}`);
+    }
+  }
+
   async uploadFile(
     bucket: string,
     filename: string,
@@ -84,6 +112,7 @@ export class S3Service {
   ): Promise<string> {
     try {
       await this.ensureBucketExists(bucket);
+      await this.setPublicBucketPolicy(bucket);
 
       const command = new PutObjectCommand({
         Bucket: bucket,
@@ -94,7 +123,10 @@ export class S3Service {
 
       await this.s3Client.send(command);
 
-      return `${bucket}/${filename}`;
+      const endpoint = await this.signingClient.config.endpoint();
+      const baseUrl = `${endpoint.protocol}//${endpoint.hostname}${endpoint.port ? `:${endpoint.port}` : ""}`;
+
+      return `${baseUrl}/${bucket}/${filename}`;
     } catch (error) {
       this.logger.error(
         `Failed to upload ${filename} to ${bucket}: ${error.message}`,

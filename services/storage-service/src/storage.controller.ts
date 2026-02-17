@@ -2,14 +2,14 @@ import { Controller, Logger } from "@nestjs/common";
 import { GrpcMethod } from "@nestjs/microservices";
 import { S3Service } from "./s3.service";
 
-interface UploadImageRequest {
+interface UploadRequest {
   filename: string;
   data: Buffer;
   bucket: string;
   mimeType: string;
 }
 
-interface UploadImageResponse {
+interface UploadResponse {
   url: string;
 }
 
@@ -29,8 +29,8 @@ export class StorageController {
 
   constructor(private readonly s3Service: S3Service) {}
 
-  @GrpcMethod("StorageService", "UploadImage")
-  async uploadImage(data: UploadImageRequest): Promise<UploadImageResponse> {
+  @GrpcMethod("StorageService", "Upload")
+  async upload(data: UploadRequest): Promise<UploadResponse> {
     this.logger.log(
       `Received upload request for ${data.filename} in bucket ${data.bucket}`,
     );

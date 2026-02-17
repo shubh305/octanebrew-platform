@@ -1,123 +1,186 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { ClientKafka } from '@nestjs/microservices';
+import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
+import * as microservices from '@nestjs/microservices';
+import { Observable, firstValueFrom } from 'rxjs';
+
+interface StorageServiceProxy {
+  upload(data: {
+    filename: string;
+    data: Uint8Array;
+    bucket: string;
+    mimeType: string;
+  }): Observable<{ url: string }>;
+}
 
 @Injectable()
-export class FFmpegService {
+export class FFmpegService implements OnModuleInit {
   private readonly logger = new Logger(FFmpegService.name);
-  // Shared volume path where Nginx dumps recordings
   private readonly minioPath: string;
-  private readonly vodOutputPath: string;
+  private readonly bucket = 'vods';
+  private storageService: StorageServiceProxy;
 
   constructor(
-    @Inject('API_SERVICE') private readonly apiClient: ClientKafka,
+    @Inject('API_SERVICE')
+    private readonly apiClient: microservices.ClientKafka,
+    @Inject('STORAGE_SERVICE')
+    private readonly storageClient: microservices.ClientGrpc,
     private configService: ConfigService,
   ) {
     this.minioPath =
       this.configService.get<string>('OPENSTREAM_VOL_PATH') || '/minio_data';
-    this.vodOutputPath = path.join(this.minioPath, 'vods');
-    this.ensureDirectory(this.vodOutputPath);
   }
 
   async onModuleInit() {
+    this.storageService =
+      this.storageClient.getService<StorageServiceProxy>('StorageService');
     this.apiClient.subscribeToResponseOf('video.processed');
     await this.apiClient.connect();
-  }
-
-  private ensureDirectory(dir: string) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
   }
 
   async processVideo(payload: { streamKey: string; filename: string }) {
     const { streamKey, filename } = payload;
     this.logger.log(`Starting processing for ${streamKey} -> ${filename}`);
 
-    const inputPath = path.join(this.minioPath, 'recordings', filename);
+    const inputPath = path.join(this.minioPath, filename);
 
     if (!fs.existsSync(inputPath)) {
       this.logger.error(`Input file not found: ${inputPath}`);
       return;
     }
 
-    const timestamp = Date.now();
-    const outputFilename = `${streamKey}-${timestamp}.mp4`;
-    const outputThumbnail = `${streamKey}-${timestamp}.jpg`;
-
-    const mp4Path = path.join(this.vodOutputPath, outputFilename);
-    const thumbPath = path.join(this.vodOutputPath, outputThumbnail);
-
     try {
-      // 1. Convert FLV to MP4
-      this.logger.log(`Transcoding ${inputPath} to ${mp4Path}`);
-      await this.runFFmpeg([
-        '-i',
-        inputPath,
-        '-c',
-        'copy',
-        '-movflags',
-        '+faststart',
-        mp4Path,
-      ]);
+      // 1. Get Duration
+      const duration = await this.getVideoDuration(inputPath);
+      this.logger.log(`Video Duration: ${duration}s`);
 
       // 2. Generate Thumbnail
-      this.logger.log(`Generating thumbnail`);
-      let thumbnailGenerated = false;
+      const thumbnailFilename = filename.replace(/\.\w+$/, '.jpg');
+
+      const thumbnailPath = path.join(this.minioPath, thumbnailFilename);
+
+      let thumbnailUploaded = false;
+      let thumbnailUrl = '';
+
       try {
-        await this.runFFmpeg([
-          '-i',
-          mp4Path,
-          '-ss',
-          '00:00:05',
-          '-vframes',
-          '1',
-          '-pix_fmt',
-          'yuvj420p',
-          '-strict',
-          'unofficial',
-          thumbPath,
-        ]);
-        thumbnailGenerated = true;
-      } catch (thumbErr) {
+        await this.generateThumbnail(inputPath, thumbnailPath);
+
+        if (fs.existsSync(thumbnailPath)) {
+          this.logger.log(
+            `Uploading thumbnail to gRPC Storage: ${thumbnailFilename}`,
+          );
+          const thumbBuffer = fs.readFileSync(thumbnailPath);
+          const { url } = await firstValueFrom<{ url: string }>(
+            this.storageService.upload({
+              filename: thumbnailFilename,
+              data: thumbBuffer,
+              bucket: this.bucket,
+              mimeType: 'image/jpeg',
+            }),
+          );
+          thumbnailUrl = url;
+          thumbnailUploaded = true;
+          fs.unlinkSync(thumbnailPath);
+        }
+      } catch (err) {
         this.logger.warn(
-          `Thumbnail generation produced a warning or error, but continuing flow: ${(thumbErr as Error).message}`,
+          `Failed to generate/upload thumbnail: ${(err as Error).message}`,
         );
       }
 
-      // 3. Emit Result to Backend (Kafka)
-      const publicMp4Url = `/vods/${outputFilename}`;
-      const publicThumbUrl = thumbnailGenerated
-        ? `/vods/${outputThumbnail}`
-        : '';
+      // 3. Transcode to MP4
+      const mp4Filename = filename.replace(/\.flv$/, '.mp4');
+      const mp4Path = path.join(this.minioPath, mp4Filename);
 
+      this.logger.log(`Transcoding ${filename} to ${mp4Filename}...`);
+      await this.transcodeVideo(inputPath, mp4Path);
+
+      // 4. Upload MP4 via gRPC
+      this.logger.log(
+        `Uploading MP4 to gRPC Storage bucket '${this.bucket}': ${mp4Filename}`,
+      );
+      const videoBuffer = fs.readFileSync(mp4Path);
+      const { url: videoUrl } = await firstValueFrom<{ url: string }>(
+        this.storageService.upload({
+          filename: mp4Filename,
+          data: videoBuffer,
+          bucket: this.bucket,
+          mimeType: 'video/mp4',
+        }),
+      );
+      this.logger.log(`Upload complete for ${mp4Filename}: ${videoUrl}`);
+
+      // Clean up MP4
+      if (fs.existsSync(mp4Path)) fs.unlinkSync(mp4Path);
+
+      // 5. Emit Result
       const completionPayload = {
         streamKey,
-        filename: outputFilename,
-        path: publicMp4Url,
-        thumbnail: publicThumbUrl,
-        duration: 0, // TODO: Parse duration
+        filename: mp4Filename,
+        path: videoUrl,
+        thumbnail: thumbnailUploaded ? thumbnailUrl : '',
+        duration: duration,
       };
 
       this.logger.log(`Emitting video.processed event for ${streamKey}`);
       this.apiClient.emit('video.processed', completionPayload);
-
-      // TODO: Cleanup raw recording
-      // fs.unlinkSync(inputPath);
     } catch (err) {
       const error = err as Error;
       this.logger.error(`Processing failed: ${error.message}`, error.stack);
     }
   }
 
-  private runFFmpeg(args: string[]): Promise<void> {
+  private async generateThumbnail(
+    input: string,
+    output: string,
+  ): Promise<void> {
+    await this.runFFmpeg([
+      '-y',
+      '-i',
+      input,
+      '-ss',
+      '00:00:01',
+      '-frames:v',
+      '1',
+      '-q:v',
+      '2',
+      '-update',
+      '1',
+      output,
+    ]);
+  }
+
+  private async transcodeVideo(input: string, output: string): Promise<void> {
+    await this.runFFmpeg([
+      '-y',
+      '-i',
+      input,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '23',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-movflags',
+      '+faststart',
+      output,
+    ]);
+  }
+
+  private async runFFmpeg(args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
       const ffmpegPath =
         this.configService.get<string>('FFMPEG_PATH') || 'ffmpeg';
-      const proc = spawn(ffmpegPath, args);
+
+      const cleanArgs = args.filter((a) => a !== 'thumbnail');
+
+      const proc = spawn(ffmpegPath, cleanArgs);
 
       proc.stdout.on('data', (data) => this.logger.debug(`[FFmpeg] ${data}`));
       proc.stderr.on('data', (data) => this.logger.debug(`[FFmpeg] ${data}`));
@@ -128,6 +191,46 @@ export class FFmpegService {
       });
 
       proc.on('error', (err) => reject(err));
+    });
+  }
+
+  private getVideoDuration(input: string): Promise<number> {
+    return new Promise((resolve) => {
+      const ffmpegPath =
+        this.configService.get<string>('FFMPEG_PATH') || 'ffmpeg';
+      const ffprobePath = ffmpegPath.replace('ffmpeg', 'ffprobe');
+
+      const args = [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        input,
+      ];
+
+      const proc = spawn(ffprobePath, args);
+      let output = '';
+
+      proc.stdout.on('data', (data: Buffer) => {
+        output += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          const duration = parseFloat(output.trim());
+          resolve(isNaN(duration) ? 0 : duration);
+        } else {
+          this.logger.warn(`ffprobe exited with code ${code}`);
+          resolve(0);
+        }
+      });
+
+      proc.on('error', (err) => {
+        this.logger.warn(`ffprobe error: ${err.message}`);
+        resolve(0);
+      });
     });
   }
 }
