@@ -30,7 +30,7 @@ export class FFmpegService implements OnModuleInit {
     private configService: ConfigService,
   ) {
     this.minioPath =
-      this.configService.get<string>('OPENSTREAM_VOL_PATH') || '/minio_data';
+      this.configService.get<string>('MINIO_DATA_DIR') || '/minio_data';
   }
 
   async onModuleInit() {
@@ -44,7 +44,7 @@ export class FFmpegService implements OnModuleInit {
     const { streamKey, filename } = payload;
     this.logger.log(`Starting processing for ${streamKey} -> ${filename}`);
 
-    const inputPath = path.join(this.minioPath, filename);
+    const inputPath = path.join(this.minioPath, 'recordings', filename);
 
     if (!fs.existsSync(inputPath)) {
       this.logger.error(`Input file not found: ${inputPath}`);
