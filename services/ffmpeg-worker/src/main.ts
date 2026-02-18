@@ -24,6 +24,8 @@ async function bootstrap() {
         },
         consumer: {
           groupId: 'ffmpeg-worker-consumer',
+          maxPollInterval: 300000,
+          sessionTimeout: 60000,
         },
       },
     },

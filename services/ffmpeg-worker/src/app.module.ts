@@ -5,6 +5,9 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 
 import { FFmpegService } from './ffmpeg/ffmpeg.service';
+import { VodFastLaneService } from './ffmpeg/vod-fast-lane.service';
+import { VodSlowLaneService } from './ffmpeg/vod-slow-lane.service';
+import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service';
 
 @Module({
   imports: [
@@ -37,6 +40,8 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
             },
             consumer: {
               groupId: 'worker-producer',
+              maxPollInterval: 300000,
+              sessionTimeout: 60000,
             },
           },
         }),
@@ -52,7 +57,7 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
             protoPath: join(__dirname, 'storage.proto'),
             url: configService.get<string>(
               'STORAGE_SERVICE_URL',
-              'storage-service:50051',
+              'localhost:50051',
             ),
             loader: {
               keepCase: true,
@@ -66,6 +71,11 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
     ]),
   ],
   controllers: [AppController],
-  providers: [FFmpegService],
+  providers: [
+    FFmpegService,
+    VodFastLaneService,
+    VodSlowLaneService,
+    ComplexityAnalyzerService,
+  ],
 })
 export class AppModule {}

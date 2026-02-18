@@ -1,10 +1,10 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
-import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import * as microservices from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
+import { FfmpegUtils } from './ffmpeg-utils';
 
 interface StorageServiceProxy {
   upload(data: {
@@ -53,12 +53,13 @@ export class FFmpegService implements OnModuleInit {
 
     try {
       // 1. Get Duration
-      const duration = await this.getVideoDuration(inputPath);
+      const duration = await FfmpegUtils.getVideoDuration(this.configService)(
+        inputPath,
+      );
       this.logger.log(`Video Duration: ${duration}s`);
 
       // 2. Generate Thumbnail
       const thumbnailFilename = filename.replace(/\.\w+$/, '.jpg');
-
       const thumbnailPath = path.join(this.minioPath, thumbnailFilename);
 
       let thumbnailUploaded = false;
@@ -69,9 +70,6 @@ export class FFmpegService implements OnModuleInit {
 
         if (fs.existsSync(thumbnailPath)) {
           const s3ThumbnailKey = `thumbnails/${thumbnailFilename}`;
-          this.logger.log(
-            `Uploading thumbnail to gRPC Storage: ${s3ThumbnailKey}`,
-          );
           const thumbBuffer = fs.readFileSync(thumbnailPath);
           const { url } = await firstValueFrom<{ url: string }>(
             this.storageService.upload({
@@ -86,8 +84,9 @@ export class FFmpegService implements OnModuleInit {
           fs.unlinkSync(thumbnailPath);
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         this.logger.warn(
-          `Failed to generate/upload thumbnail: ${(err as Error).message}`,
+          `Failed to generate/upload thumbnail: ${errorMessage}`,
         );
       }
 
@@ -98,11 +97,8 @@ export class FFmpegService implements OnModuleInit {
       this.logger.log(`Transcoding ${filename} to ${mp4Filename}...`);
       await this.transcodeVideo(inputPath, mp4Path);
 
-      // 4. Upload MP4 via gRPC
+      // 4. Upload MP4
       const s3VideoKey = `videos/${mp4Filename}`;
-      this.logger.log(
-        `Uploading MP4 to gRPC Storage bucket '${this.bucket}': ${s3VideoKey}`,
-      );
       const videoBuffer = fs.readFileSync(mp4Path);
       const { url: videoUrl } = await firstValueFrom<{ url: string }>(
         this.storageService.upload({
@@ -112,9 +108,7 @@ export class FFmpegService implements OnModuleInit {
           mimeType: 'video/mp4',
         }),
       );
-      this.logger.log(`Upload complete for ${s3VideoKey}: ${videoUrl}`);
 
-      // Clean up MP4
       if (fs.existsSync(mp4Path)) fs.unlinkSync(mp4Path);
 
       // 5. Emit Result
@@ -138,101 +132,48 @@ export class FFmpegService implements OnModuleInit {
     input: string,
     output: string,
   ): Promise<void> {
-    await this.runFFmpeg([
-      '-y',
-      '-i',
-      input,
-      '-ss',
-      '00:00:01',
-      '-frames:v',
-      '1',
-      '-q:v',
-      '2',
-      '-update',
-      '1',
-      output,
-    ]);
+    await FfmpegUtils.runFFmpeg(
+      this.configService,
+      [
+        '-y',
+        '-i',
+        input,
+        '-ss',
+        '00:00:01',
+        '-frames:v',
+        '1',
+        '-q:v',
+        '2',
+        '-update',
+        '1',
+        output,
+      ],
+      'FFMPEG',
+    );
   }
 
   private async transcodeVideo(input: string, output: string): Promise<void> {
-    await this.runFFmpeg([
-      '-y',
-      '-i',
-      input,
-      '-c:v',
-      'libx264',
-      '-preset',
-      'veryfast',
-      '-crf',
-      '23',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '128k',
-      '-movflags',
-      '+faststart',
-      output,
-    ]);
-  }
-
-  private async runFFmpeg(args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const ffmpegPath =
-        this.configService.get<string>('FFMPEG_PATH') || 'ffmpeg';
-
-      const cleanArgs = args.filter((a) => a !== 'thumbnail');
-
-      const proc = spawn(ffmpegPath, cleanArgs);
-
-      proc.stdout.on('data', (data) => this.logger.debug(`[FFmpeg] ${data}`));
-      proc.stderr.on('data', (data) => this.logger.debug(`[FFmpeg] ${data}`));
-
-      proc.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`FFmpeg exited with code ${code}`));
-      });
-
-      proc.on('error', (err) => reject(err));
-    });
-  }
-
-  private getVideoDuration(input: string): Promise<number> {
-    return new Promise((resolve) => {
-      const ffmpegPath =
-        this.configService.get<string>('FFMPEG_PATH') || 'ffmpeg';
-      const ffprobePath = ffmpegPath.replace('ffmpeg', 'ffprobe');
-
-      const args = [
-        '-v',
-        'error',
-        '-show_entries',
-        'format=duration',
-        '-of',
-        'default=noprint_wrappers=1:nokey=1',
+    await FfmpegUtils.runFFmpeg(
+      this.configService,
+      [
+        '-y',
+        '-i',
         input,
-      ];
-
-      const proc = spawn(ffprobePath, args);
-      let output = '';
-
-      proc.stdout.on('data', (data: Buffer) => {
-        output += data.toString();
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          const duration = parseFloat(output.trim());
-          resolve(isNaN(duration) ? 0 : duration);
-        } else {
-          this.logger.warn(`ffprobe exited with code ${code}`);
-          resolve(0);
-        }
-      });
-
-      proc.on('error', (err) => {
-        this.logger.warn(`ffprobe error: ${err.message}`);
-        resolve(0);
-      });
-    });
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '23',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        output,
+      ],
+      'FFMPEG',
+    );
   }
 }
