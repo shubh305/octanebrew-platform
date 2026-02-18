@@ -33,7 +33,7 @@ export class FfmpegUtils {
     const minioPath = config.get<string>('MINIO_DATA_DIR') || '/minio_data';
     const directPath = path.join(minioPath, bucket, storagePath);
 
-    if (fs.existsSync(directPath)) {
+    if (fs.existsSync(directPath) && fs.lstatSync(directPath).isFile()) {
       fs.copyFileSync(directPath, localPath);
       this.logger.log(`Downloaded via direct mount: ${storagePath}`);
       return;
