@@ -22,12 +22,9 @@ import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service'
           transport: Transport.KAFKA,
           options: {
             client: {
-              brokers: [
-                configService.get(
-                  'KAFKA_BROKERS',
-                  'broker.octanebrew.dev:8084',
-                ),
-              ],
+              brokers: configService
+                .get<string>('KAFKA_BROKERS', 'broker.octanebrew.dev:8084')
+                .split(','),
               sasl: configService.get('KAFKA_SASL_USER')
                 ? {
                     mechanism: 'plain',
@@ -39,7 +36,10 @@ import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service'
               requestTimeout: 30000,
             },
             consumer: {
-              groupId: 'worker-producer',
+              groupId: configService.get<string>(
+                'KAFKA_FFMPEG_PRODUCER_GROUP_ID',
+                'worker-producer',
+              ),
               maxPollInterval: 300000,
               sessionTimeout: 60000,
             },

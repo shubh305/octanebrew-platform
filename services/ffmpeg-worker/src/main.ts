@@ -11,7 +11,7 @@ async function bootstrap() {
       transport: Transport.KAFKA,
       options: {
         client: {
-          brokers: [process.env.KAFKA_BROKERS || 'kafka:9092'],
+          brokers: (process.env.KAFKA_BROKERS || 'kafka:9092').split(','),
           connectionTimeout: 10000,
           requestTimeout: 30000,
           sasl: isSaslEnabled
@@ -23,7 +23,9 @@ async function bootstrap() {
             : undefined,
         },
         consumer: {
-          groupId: 'ffmpeg-worker-consumer',
+          groupId:
+            process.env.KAFKA_FFMPEG_CONSUMER_GROUP_ID ||
+            'ffmpeg-worker-consumer',
           maxPollInterval: 300000,
           sessionTimeout: 60000,
         },
