@@ -28,6 +28,14 @@ async function bootstrap() {
             'ffmpeg-worker-consumer',
           maxPollInterval: 3600000,
           sessionTimeout: 120000,
+          rebalanceTimeout: 3600000,
+        },
+        subscribe: {
+          fromBeginning: false,
+        },
+        run: {
+          concurrency: 5,
+          autoCommit: true,
         },
       },
     },

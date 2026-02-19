@@ -48,10 +48,7 @@ export class VodFastLaneService implements OnModuleInit {
     }
   }
 
-  async processFastLane(
-    payload: VodTranscodePayload,
-    onHeartbeat?: () => Promise<void> | void,
-  ) {
+  async processFastLane(payload: VodTranscodePayload) {
     const { videoId, storagePath, originalFilename } = payload;
     const jobDir = path.join(this.workDir, videoId);
 
@@ -82,7 +79,7 @@ export class VodFastLaneService implements OnModuleInit {
       const thumbPath = path.join(jobDir, 'thumbnail.jpg');
       let thumbnailUrl = '';
       try {
-        await this.generateThumbnail(sourcePath, thumbPath, onHeartbeat);
+        await this.generateThumbnail(sourcePath, thumbPath);
         if (fs.existsSync(thumbPath)) {
           const thumbKey = `vod/${videoId}/thumbnail.jpg`;
           const thumbBuffer = fs.readFileSync(thumbPath);
@@ -108,12 +105,7 @@ export class VodFastLaneService implements OnModuleInit {
       }
 
       const playlistPath = path.join(hlsDir, 'playlist.m3u8');
-      await this.transcodeTo480pHLS(
-        sourcePath,
-        hlsDir,
-        playlistPath,
-        onHeartbeat,
-      );
+      await this.transcodeTo480pHLS(sourcePath, hlsDir, playlistPath);
 
       // 5. Upload outputs
       await this.uploadHLSOutput(videoId, hlsDir);
@@ -166,7 +158,6 @@ export class VodFastLaneService implements OnModuleInit {
     input: string,
     hlsDir: string,
     playlistPath: string,
-    onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
     await FfmpegUtils.runFFmpeg(
       this.configService,
@@ -205,7 +196,6 @@ export class VodFastLaneService implements OnModuleInit {
         playlistPath,
       ],
       'FAST',
-      onHeartbeat,
     );
   }
 
@@ -250,7 +240,6 @@ export class VodFastLaneService implements OnModuleInit {
   private async generateThumbnail(
     input: string,
     output: string,
-    onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
     await FfmpegUtils.runFFmpeg(
       this.configService,
@@ -269,7 +258,6 @@ export class VodFastLaneService implements OnModuleInit {
         output,
       ],
       'FAST',
-      onHeartbeat,
     );
   }
 }
