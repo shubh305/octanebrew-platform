@@ -75,24 +75,15 @@ export class VodSlowLaneService implements OnModuleInit {
         `[SLOW] Complexity: score=${complexity.score}, CRF=${complexity.crf}`,
       );
 
-      // 3. Transcode 720p
+      // 3. Transcode 720p + 1080p in a single FFmpeg pass
       const hls720Dir = path.join(jobDir, '720p');
+      const hls1080Dir = path.join(jobDir, '1080p');
       fs.mkdirSync(hls720Dir, { recursive: true });
-      await this.transcodeResolution(
+      fs.mkdirSync(hls1080Dir, { recursive: true });
+      await this.transcodeBothResolutions(
         sourcePath,
         hls720Dir,
-        720,
-        complexity.crf,
-        onHeartbeat,
-      );
-
-      // 4. Transcode 1080p
-      const hls1080Dir = path.join(jobDir, '1080p');
-      fs.mkdirSync(hls1080Dir, { recursive: true });
-      await this.transcodeResolution(
-        sourcePath,
         hls1080Dir,
-        1080,
         complexity.crf,
         onHeartbeat,
       );
@@ -128,6 +119,14 @@ export class VodSlowLaneService implements OnModuleInit {
         this.apiClient.emit('video.complete', completePayload),
       );
 
+      // Delete the original source recording from the local MinIO mount
+      FfmpegUtils.deleteFromStorage(
+        this.configService,
+        payload.bucket || this.bucket,
+        storagePath,
+        'SLOW',
+      );
+
       FfmpegUtils.cleanupDir(jobDir, 'SLOW');
     } catch (err) {
       const error = err as Error;
@@ -138,15 +137,33 @@ export class VodSlowLaneService implements OnModuleInit {
     }
   }
 
-  private async transcodeResolution(
+  /**
+   * Single-pass dual-resolution encode using -filter_complex split.
+   */
+  private async transcodeBothResolutions(
     input: string,
-    hlsDir: string,
-    height: number,
+    hls720Dir: string,
+    hls1080Dir: string,
     crf: number,
     onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
-    const playlistPath = path.join(hlsDir, 'playlist.m3u8');
-    const adjustedCrf = height <= 720 ? crf + 1 : crf;
+    const preset =
+      this.configService.get<string>('SLOW_LANE_PRESET') || 'veryfast';
+    const hlsTime = this.configService.get<string>('HLS_SEGMENT_TIME') || '4';
+
+    const crf720 = crf + 1;
+    const crf1080 = crf;
+
+    const playlist720 = path.join(hls720Dir, 'playlist.m3u8');
+    const playlist1080 = path.join(hls1080Dir, 'playlist.m3u8');
+    const seg720 = path.join(hls720Dir, 'seg_%03d.ts');
+    const seg1080 = path.join(hls1080Dir, 'seg_%03d.ts');
+
+    const filterGraph = [
+      '[0:v]split=2[v720][v1080]',
+      '[v720]scale=-2:720[out720]',
+      '[v1080]scale=-2:1080[out1080]',
+    ].join(';');
 
     await FfmpegUtils.runFFmpeg(
       this.configService,
@@ -154,20 +171,26 @@ export class VodSlowLaneService implements OnModuleInit {
         '-y',
         '-i',
         input,
-        '-threads',
-        '1',
-        '-vf',
-        `scale=-2:${height}`,
+        '-filter_complex',
+        filterGraph,
+
+        // ── 720p output ──
+        '-map',
+        '[out720]',
+        '-map',
+        '0:a',
         '-c:v',
         'libx264',
         '-preset',
-        'veryfast',
+        preset,
         '-crf',
-        String(adjustedCrf),
+        String(crf720),
+        '-threads',
+        '2',
         '-c:a',
         'aac',
         '-b:a',
-        height >= 1080 ? '128k' : '96k',
+        '96k',
         '-ac',
         '2',
         '-g',
@@ -177,14 +200,49 @@ export class VodSlowLaneService implements OnModuleInit {
         '-sc_threshold',
         '0',
         '-hls_time',
-        '6',
+        hlsTime,
         '-hls_playlist_type',
         'vod',
         '-hls_flags',
         'independent_segments',
         '-hls_segment_filename',
-        path.join(hlsDir, `seg_%03d.ts`),
-        playlistPath,
+        seg720,
+        playlist720,
+
+        // ── 1080p output ──
+        '-map',
+        '[out1080]',
+        '-map',
+        '0:a',
+        '-c:v',
+        'libx264',
+        '-preset',
+        preset,
+        '-crf',
+        String(crf1080),
+        '-threads',
+        '2',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-ac',
+        '2',
+        '-g',
+        '60',
+        '-keyint_min',
+        '60',
+        '-sc_threshold',
+        '0',
+        '-hls_time',
+        hlsTime,
+        '-hls_playlist_type',
+        'vod',
+        '-hls_flags',
+        'independent_segments',
+        '-hls_segment_filename',
+        seg1080,
+        playlist1080,
       ],
       'SLOW',
       onHeartbeat,

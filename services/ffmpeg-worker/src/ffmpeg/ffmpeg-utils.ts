@@ -217,4 +217,34 @@ export class FfmpegUtils {
       this.logger.warn(`[${serviceName}] Failed to clean up ${dir}`);
     }
   }
+
+  /**
+   * Delete the original source recording from the local MinIO mount.
+   */
+  static deleteFromStorage(
+    config: ConfigService,
+    bucket: string,
+    storagePath: string,
+    serviceName: string,
+  ): void {
+    const minioPath = config.get<string>('MINIO_DATA_DIR') || '/minio_data';
+    const directPath = path.join(minioPath, bucket, storagePath);
+
+    try {
+      if (fs.existsSync(directPath)) {
+        fs.unlinkSync(directPath);
+        this.logger.log(
+          `[${serviceName}] Deleted source recording: ${storagePath}`,
+        );
+      } else {
+        this.logger.warn(
+          `[${serviceName}] Source not found on mount, skipping delete: ${directPath}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `[${serviceName}] Failed to delete source recording: ${(err as Error).message}`,
+      );
+    }
+  }
 }

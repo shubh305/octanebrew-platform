@@ -64,36 +64,59 @@ services:
           cpus: '2.0'
           memory: 4G
 
-  ffmpeg:
+  # --- FFMPEG WORKER (shared base via YAML anchor) ---
+  x-ffmpeg-base: &ffmpeg-base
     build:
       context: ./services/ffmpeg-worker
       dockerfile: Dockerfile
-    container_name: ffmpeg-worker
     volumes:
       - /mnt/data/minio/data:/minio_data:rw
-    environment:
-      - KAFKA_BROKERS=${KAFKA_BOOTSTRAP_SERVERS}
-      - FFMPEG_PATH=/usr/bin/ffmpeg
-      - OPENSTREAM_VOL_PATH=/minio_data
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
-      - MINIO_PORT=${MINIO_PORT}
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
-      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
-      - STORAGE_SERVICE_URL=storage-service:50051
-      - KAFKA_FFMPEG_CONSUMER_GROUP_ID=${KAFKA_FFMPEG_CONSUMER_GROUP_ID}
-      - KAFKA_FFMPEG_PRODUCER_GROUP_ID=${KAFKA_FFMPEG_PRODUCER_GROUP_ID}
     networks:
       - octane-net
     depends_on:
       - kafka
+    environment: &ffmpeg-env
+      KAFKA_BROKERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      OPENSTREAM_VOL_PATH: /minio_data
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      KAFKA_SASL_USER: ${KAFKA_BROKER_USER}
+      KAFKA_SASL_PASS: ${KAFKA_BROKER_PASS}
+      STORAGE_SERVICE_URL: storage-service:50051
+      HLS_SEGMENT_TIME: "4"
 
+  ffmpeg-worker-fast:
+    <<: *ffmpeg-base
+    container_name: ffmpeg-worker-fast
+    environment:
+      <<: *ffmpeg-env
+      PROCESS_LANE: fast
+      KAFKA_FFMPEG_CONSUMER_GROUP_ID: ffmpeg-worker-fast
+      KAFKA_FFMPEG_PRODUCER_GROUP_ID: ffmpeg-fast-producer
+      FAST_LANE_PRESET: ultrafast
     deploy:
       resources:
         limits:
-          cpus: '3.0'
-          memory: 12G
+          cpus: '1.0'
+          memory: 3G
+
+  ffmpeg-worker-slow:
+    <<: *ffmpeg-base
+    container_name: ffmpeg-worker-slow
+    environment:
+      <<: *ffmpeg-env
+      PROCESS_LANE: slow
+      KAFKA_FFMPEG_CONSUMER_GROUP_ID: ffmpeg-worker-slow
+      KAFKA_FFMPEG_PRODUCER_GROUP_ID: ffmpeg-slow-producer
+      SLOW_LANE_PRESET: veryfast
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 6G
 
   # --- KAFKA ECOSYSTEM ---
   kafka:
