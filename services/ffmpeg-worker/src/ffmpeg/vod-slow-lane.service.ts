@@ -45,7 +45,10 @@ export class VodSlowLaneService implements OnModuleInit {
     await this.apiClient.connect();
   }
 
-  async processSlowLane(payload: VodTranscodePayload) {
+  async processSlowLane(
+    payload: VodTranscodePayload,
+    onHeartbeat?: () => Promise<void> | void,
+  ) {
     const { videoId, storagePath, originalFilename } = payload;
     const jobDir = path.join(this.workDir, `${videoId}-slow`);
 
@@ -80,6 +83,7 @@ export class VodSlowLaneService implements OnModuleInit {
         hls720Dir,
         720,
         complexity.crf,
+        onHeartbeat,
       );
 
       // 4. Transcode 1080p
@@ -90,6 +94,7 @@ export class VodSlowLaneService implements OnModuleInit {
         hls1080Dir,
         1080,
         complexity.crf,
+        onHeartbeat,
       );
 
       // 5. Upload segments
@@ -138,6 +143,7 @@ export class VodSlowLaneService implements OnModuleInit {
     hlsDir: string,
     height: number,
     crf: number,
+    onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
     const playlistPath = path.join(hlsDir, 'playlist.m3u8');
     const adjustedCrf = height <= 720 ? crf + 1 : crf;
@@ -179,6 +185,7 @@ export class VodSlowLaneService implements OnModuleInit {
         playlistPath,
       ],
       'SLOW',
+      onHeartbeat,
     );
   }
 

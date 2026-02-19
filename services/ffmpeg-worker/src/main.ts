@@ -27,7 +27,7 @@ async function bootstrap() {
             process.env.KAFKA_FFMPEG_CONSUMER_GROUP_ID ||
             'ffmpeg-worker-consumer',
           maxPollInterval: 3600000,
-          sessionTimeout: 120000,
+          sessionTimeout: 300000, // Increase to 5 minutes
           rebalanceTimeout: 3600000,
         },
         subscribe: {

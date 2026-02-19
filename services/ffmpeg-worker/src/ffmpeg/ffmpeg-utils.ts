@@ -97,18 +97,35 @@ export class FfmpegUtils {
     config: ConfigService,
     args: string[],
     serviceName: string,
+    onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const ffmpegPath = config.get<string>('FFMPEG_PATH') || 'ffmpeg';
       const proc = spawn(ffmpegPath, args);
 
+      // Periodic heartbeat to signal liveness to Kafka broker during CPU-intense tasks
+      let heartbeatInterval: NodeJS.Timeout | null = null;
+      if (onHeartbeat) {
+        heartbeatInterval = setInterval(() => {
+          Promise.resolve(onHeartbeat()).catch((err) => {
+            this.logger.warn(
+              `[${serviceName}] Heartbeat failed during FFmpeg run: ${err}`,
+            );
+          });
+        }, 30000);
+      }
+
       proc.on('close', (code) => {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (code === 0) resolve();
         else
           reject(new Error(`${serviceName} FFmpeg exited with code ${code}`));
       });
 
-      proc.on('error', (err) => reject(err));
+      proc.on('error', (err) => {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        reject(err);
+      });
     });
   }
 
@@ -156,7 +173,9 @@ export class FfmpegUtils {
    */
   static cleanupDir(dir: string, serviceName: string) {
     try {
-      fs.rmSync(dir, { recursive: true, force: true });
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     } catch {
       this.logger.warn(`[${serviceName}] Failed to clean up ${dir}`);
     }
