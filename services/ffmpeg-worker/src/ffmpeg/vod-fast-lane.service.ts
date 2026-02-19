@@ -174,6 +174,8 @@ export class VodFastLaneService implements OnModuleInit {
         '-y',
         '-i',
         input,
+        '-threads',
+        '0',
         '-vf',
         'scale=-2:480',
         '-c:v',

@@ -101,9 +101,10 @@ export class FfmpegUtils {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const ffmpegPath = config.get<string>('FFMPEG_PATH') || 'ffmpeg';
+
       const isUnix = process.platform !== 'win32';
       const finalCommand = isUnix ? 'nice' : ffmpegPath;
-      const finalArgs = isUnix ? ['-n', '10', ffmpegPath, ...args] : args;
+      const finalArgs = isUnix ? ['-n', '15', ffmpegPath, ...args] : args;
 
       const proc = spawn(finalCommand, finalArgs);
 
@@ -119,20 +120,43 @@ export class FfmpegUtils {
       }
 
       let lastLogTime = Date.now();
+      let accumulatedOutput = '';
+
       proc.stderr.on('data', (data: Buffer) => {
-        const str = data.toString();
-        if (str.includes('frame=') && Date.now() - lastLogTime > 10000) {
-          const stats = str.split('\r').pop()?.trim().substring(0, 100);
-          this.logger.log(`[${serviceName}] Progress: ${stats}`);
-          lastLogTime = Date.now();
+        accumulatedOutput += data.toString();
+        if (accumulatedOutput.length > 5000) {
+          accumulatedOutput = accumulatedOutput.substring(
+            accumulatedOutput.length - 2000,
+          );
+        }
+
+        if (Date.now() - lastLogTime > 10000) {
+          const match = accumulatedOutput.match(
+            /frame=\s*(\d+).*fps=\s*([\d.]+).*time=([\d:.]+)/,
+          );
+          if (match) {
+            this.logger.log(
+              `[${serviceName}] Progress: Frame=${match[1]}, FPS=${match[2]}, Time=${match[3]}`,
+            );
+            lastLogTime = Date.now();
+            accumulatedOutput = '';
+          }
         }
       });
 
       proc.on('close', (code) => {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (code === 0) resolve();
-        else
-          reject(new Error(`${serviceName} FFmpeg exited with code ${code}`));
+        else {
+          const errorDetail = accumulatedOutput.substring(
+            accumulatedOutput.length - 500,
+          );
+          reject(
+            new Error(
+              `${serviceName} FFmpeg exited with code ${code}. Detail: ${errorDetail}`,
+            ),
+          );
+        }
       });
 
       proc.on('error', (err) => {
