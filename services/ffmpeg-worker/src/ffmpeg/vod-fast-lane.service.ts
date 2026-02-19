@@ -168,8 +168,7 @@ export class VodFastLaneService implements OnModuleInit {
     playlistPath: string,
     onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
-    const preset =
-      this.configService.get<string>('FAST_LANE_PRESET') || 'ultrafast';
+    const preset = this.configService.get<string>('FAST_LANE_PRESET') || 'fast';
     const hlsTime = this.configService.get<string>('HLS_SEGMENT_TIME') || '4';
 
     await FfmpegUtils.runFFmpeg(
@@ -181,13 +180,21 @@ export class VodFastLaneService implements OnModuleInit {
         '-threads',
         '0',
         '-vf',
-        'scale=-2:480',
+        'scale=-2:480,format=yuv420p',
         '-c:v',
         'libx264',
         '-preset',
         preset,
         '-crf',
-        '28',
+        '23',
+        '-color_range',
+        '1',
+        '-colorspace',
+        'bt709',
+        '-color_primaries',
+        'bt709',
+        '-color_trc',
+        'bt709',
         '-c:a',
         'aac',
         '-b:a',
