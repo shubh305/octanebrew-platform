@@ -130,7 +130,7 @@ export class FfmpegUtils {
           );
         }
 
-        if (Date.now() - lastLogTime > 10000) {
+        if (Date.now() - lastLogTime > 30000) {
           const match = accumulatedOutput.match(
             /frame=\s*(\d+).*fps=\s*([\d.]+).*time=([\d:.]+)/,
           );

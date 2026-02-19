@@ -26,7 +26,10 @@ export class AppController {
     @Payload() message: Record<string, unknown>,
     @Ctx() context: KafkaContext,
   ) {
-    if (this.lane === 'slow') return;
+    if (this.lane === 'slow') {
+      await this.commitOffset(context);
+      return;
+    }
 
     this.logger.log(`Received VOD fast-lane job: ${JSON.stringify(message)}`);
 
@@ -35,6 +38,7 @@ export class AppController {
     const heartbeatCallback = () => heartbeat();
 
     await this.vodFastLane.processFastLane(payload, heartbeatCallback);
+    await this.commitOffset(context);
   }
 
   /** VOD upload pipeline — slow lane (720p + 1080p adaptive CRF) */
@@ -43,7 +47,10 @@ export class AppController {
     @Payload() message: Record<string, unknown>,
     @Ctx() context: KafkaContext,
   ) {
-    if (this.lane === 'fast') return;
+    if (this.lane === 'fast') {
+      await this.commitOffset(context);
+      return;
+    }
 
     this.logger.log(`Received VOD slow-lane job: ${JSON.stringify(message)}`);
 
@@ -53,10 +60,30 @@ export class AppController {
 
     try {
       await this.vodSlowLane.processSlowLane(payload, heartbeatCallback);
+      await this.commitOffset(context);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.logger.error(`Error in slow lane processing: ${errorMessage}`);
       throw err;
+    }
+  }
+
+  /** Explicitly commit the current message's offset to advance the consumer group. */
+  private async commitOffset(context: KafkaContext): Promise<void> {
+    try {
+      const topic = context.getTopic();
+      const partition = context.getPartition();
+      const { offset } = context.getMessage();
+      const consumer = context.getConsumer();
+      const nextOffset = (parseInt(offset, 10) + 1).toString();
+      await consumer.commitOffsets([{ topic, partition, offset: nextOffset }]);
+      this.logger.debug(
+        `[${topic}] Committed offset ${nextOffset} (partition ${partition})`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Offset commit failed (non-fatal): ${(err as Error).message}`,
+      );
     }
   }
 }

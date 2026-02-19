@@ -15,7 +15,7 @@ async function bootstrap() {
       ? baseGroupId
       : `${baseGroupId.replace(/-consumer$/, '')}-${lane}`;
 
-  const concurrency = lane === 'fast' ? 4 : lane === 'slow' ? 2 : 3;
+  const concurrency = lane === 'fast' ? 2 : lane === 'slow' ? 1 : 3;
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
