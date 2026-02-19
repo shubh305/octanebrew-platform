@@ -91,7 +91,7 @@ export class FfmpegUtils {
   }
 
   /**
-   * Run FFmpeg command.
+   * Run FFmpeg command with progress logging and heartbeat.
    */
   static async runFFmpeg(
     config: ConfigService,
@@ -101,9 +101,12 @@ export class FfmpegUtils {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const ffmpegPath = config.get<string>('FFMPEG_PATH') || 'ffmpeg';
-      const proc = spawn(ffmpegPath, args);
+      const isUnix = process.platform !== 'win32';
+      const finalCommand = isUnix ? 'nice' : ffmpegPath;
+      const finalArgs = isUnix ? ['-n', '10', ffmpegPath, ...args] : args;
 
-      // Periodic heartbeat to signal liveness to Kafka broker during CPU-intense tasks
+      const proc = spawn(finalCommand, finalArgs);
+
       let heartbeatInterval: NodeJS.Timeout | null = null;
       if (onHeartbeat) {
         heartbeatInterval = setInterval(() => {
@@ -112,8 +115,18 @@ export class FfmpegUtils {
               `[${serviceName}] Heartbeat failed during FFmpeg run: ${err}`,
             );
           });
-        }, 30000);
+        }, 15000);
       }
+
+      let lastLogTime = Date.now();
+      proc.stderr.on('data', (data: Buffer) => {
+        const str = data.toString();
+        if (str.includes('frame=') && Date.now() - lastLogTime > 10000) {
+          const stats = str.split('\r').pop()?.trim().substring(0, 100);
+          this.logger.log(`[${serviceName}] Progress: ${stats}`);
+          lastLogTime = Date.now();
+        }
+      });
 
       proc.on('close', (code) => {
         if (heartbeatInterval) clearInterval(heartbeatInterval);

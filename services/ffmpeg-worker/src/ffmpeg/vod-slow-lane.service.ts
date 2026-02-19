@@ -154,6 +154,8 @@ export class VodSlowLaneService implements OnModuleInit {
         '-y',
         '-i',
         input,
+        '-threads',
+        '2',
         '-vf',
         `scale=-2:${height}`,
         '-c:v',
