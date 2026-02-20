@@ -17,19 +17,24 @@ def get_system_prompt(entity_type: EntityType = "article") -> str:
         System prompt string optimized for structured JSON responses
     """
     if entity_type in ("video_transcript", "video"):
-        return """You are an expert video content analyzer. Analyze the video transcript and return a structured JSON object.
+        return """You are an expert video content analyzer. Analyze the video and return a structured JSON object.
 
 OUTPUT FORMAT (Return ONLY valid JSON, no markdown formatting):
 {
   "topic": "Primary subject of the video",
-  "summary": "Narrative summary of the discussion or presentation",
-  "key_moments": ["Key topic 1", "Key topic 2", "Key topic 3", "Key topic 4", "Key topic 5"]
+  "summary": "A descriptive narrative summary of the video content (3-5 sentences).",
+  "key_moments": ["Key topic 1", "Key topic 2", "Key topic 3", "Key topic 4", "Key topic 5"],
+  "entities": ["Entity 1", "Entity 2", "Entity 3"],
+  "language": "en"
 }
 
 RULES:
-- Ignore filler words and focus on substantive content
-- Preserve specific terminology and entity names exactly
-- Ensure key_moments contains exactly 5 distinct topics
+- Frame the summary as a direct description of the video (e.g., "This video highlights...", "The creator explores...", "A deep dive into...").
+- CRITICAL: DO NOT use words like "transcript", "text", "footage", or "recording" in the summary. Talk about the video as a piece of content.
+- CRITICAL: DO NOT guess the name of the game if it is not explicitly mentioned in the title, description, or transcript. If unsure, use generic terms like "the game" or "the gameplay".
+- Ignore filler words and focus on substantive content.
+- Preserve specific terminology and entity names exactly.
+- Ensure key_moments contains exactly 5 distinct topics.
 - Return ONLY the JSON object (no markdown code blocks, no additional text)""".strip()
     
     elif entity_type in ("blog_post", "article"):
@@ -68,31 +73,46 @@ RULES:
 - Return ONLY the JSON object (no markdown code blocks, no additional text)""".strip()
 
 
-def get_user_prompt(text: str, entity_type: EntityType = "article", max_length: int = 12000) -> str:
+def get_user_prompt(
+    text: str, 
+    entity_type: EntityType = "article", 
+    max_length: int = 12000,
+    title: str = "",
+    description: str = "",
+    category: str = ""
+) -> str:
     """
     Returns the user prompt with content to analyze.
     
     Args:
         text: Content to analyze
-        entity_type: Type of content (for future template customization)
+        entity_type: Type of content
         max_length: Maximum characters to include
+        title: Content title
+        description: Content description
+        category: Content category
         
     Returns:
-        Formatted prompt with truncated content
+        Formatted prompt with metadata and content
     """
+    context = ""
+    if title: context += f"TITLE: {title}\n"
+    if category: context += f"CATEGORY: {category}\n"
+    if description: context += f"DESCRIPTION: {description}\n"
+    
     truncated_text = text[:max_length]
     char_count = len(truncated_text)
     
-    if char_count < len(text):
-        return f"""Analyze the following {entity_type} (truncated to {char_count} characters):
-
-{truncated_text}
-
-[Content truncated for token limits]"""
+    prompt = f"Analyze the following {entity_type}:\n\n"
+    if context:
+        prompt += f"CONTEXT METADATA:\n{context}\n---\n\n"
     
-    return f"""Analyze the following {entity_type}:
-
-{truncated_text}"""
+    prompt += f"CONTENT:\n{truncated_text}"
+    
+    if char_count < len(text):
+        prompt += "\n\n[Content truncated for token limits]"
+    
+    return prompt
 
 
 def validate_json_response(response: str) -> dict:

@@ -57,13 +57,17 @@ async def consume():
             "sasl_plain_password": settings.KAFKA_SASL_PASS
         })
 
+    topics = [settings.KAFKA_TOPIC]
+    if settings.OPENSTREAM_KAFKA_TOPIC:
+        topics.append(settings.OPENSTREAM_KAFKA_TOPIC)
+
     consumer = AIOKafkaConsumer(
-        settings.KAFKA_TOPIC,
+        *topics,
         **kafka_kwargs
     )
     
     await consumer.start()
-    logger.info(f"Consumer started on {settings.KAFKA_TOPIC}")
+    logger.info(f"Consumer started on {topics}")
     
     try:
         async for msg in consumer:
@@ -111,8 +115,12 @@ async def consume():
                                 VALUES ($1, $2, $3, $4)
                             """, data.entity_id, task_type, json.dumps({
                                 "entity_type": data.entity_type,
+                                "source_app": data.source_app,
                                 "chunks": chunks_text,
                                 "text": text_content,
+                                "title": title,
+                                "description": data.payload.get('description', ""),
+                                "category": data.payload.get('category', ""),
                                 "enrichments": data.enrichments,
                                 "chunk_size": data.chunk_size,
                                 "chunk_overlap": data.chunk_overlap,

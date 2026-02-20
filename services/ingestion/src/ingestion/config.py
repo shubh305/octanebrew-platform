@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = Field(None, validation_alias=AliasChoices("KAFKA_BOOTSTRAP_SERVERS", "KAFKA_BROKERS"))
     KAFKA_TOPIC: str = Field(None, validation_alias=AliasChoices("INGESTION_KAFKA_TOPIC", "KAFKA_TOPIC"))
     KAFKA_RESULT_TOPIC: str = Field(None, validation_alias=AliasChoices("INGESTION_KAFKA_RESULT_TOPIC", "KAFKA_RESULT_TOPIC"))
+    OPENSTREAM_KAFKA_TOPIC: str = Field("openstream.ingest.requests", validation_alias=AliasChoices("OPENSTREAM_KAFKA_TOPIC"))
+    OPENSTREAM_KAFKA_RESULT_TOPIC: str = Field("openstream.ingest.results", validation_alias=AliasChoices("OPENSTREAM_KAFKA_RESULT_TOPIC"))
+
     KAFKA_GROUP_ID: Optional[str] = Field(None, validation_alias=AliasChoices("INGESTION_KAFKA_GROUP_ID", "KAFKA_GROUP_ID"))
     
     KAFKA_SASL_USER: Optional[str] = Field(None, validation_alias=AliasChoices("KAFKA_SASL_USER", "KAFKA_BROKER_USER"))

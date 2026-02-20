@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Request, HTTPException
 from ..models import IngestRequest
 from ..config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ingest"])
 
@@ -15,7 +18,12 @@ async def ingest_content(payload: IngestRequest, request: Request):
          raise HTTPException(status_code=500, detail="Kafka producer not ready")
     
     try:
-        await producer.send_and_wait(settings.KAFKA_TOPIC, payload.model_dump(mode='json'))
-        return {"status": "queued", "trace_id": payload.trace_id}
+        topic = settings.KAFKA_TOPIC
+        if payload.source_app == "openstream":
+            topic = settings.OPENSTREAM_KAFKA_TOPIC
+            
+        logger.info(f"Ingesting content for {payload.entity_id} into topic: {topic}")
+        await producer.send_and_wait(topic, payload.model_dump(mode='json'))
+        return {"status": "queued", "trace_id": payload.trace_id, "topic": topic}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

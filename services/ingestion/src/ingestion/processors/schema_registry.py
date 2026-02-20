@@ -14,6 +14,8 @@ class SchemaRegistry:
             "entities": { "type": "keyword" },
             "language": { "type": "keyword" },
             "key_concepts": { "type": "keyword" },
+            "key_moments": { "type": "keyword" },
+            "topic": { "type": "text", "analyzer": "standard" },
             "published_at": { "type": "date" }
         }
 

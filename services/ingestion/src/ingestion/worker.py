@@ -124,6 +124,7 @@ class JobProcessor:
 
     async def execute_job(self, job):
         payload = json.loads(job['payload'])
+        logger.info(f"Executing job for {job['entity_id']} (source_app: {payload.get('source_app')})")
         enrichments = payload.get('enrichments', [])
         
         if job['task_type'] in ['embed', 'enrich']:
@@ -136,7 +137,13 @@ class JobProcessor:
             summary_data = None
             if ("summary" in enrichments or "vectors" in enrichments) and text:
                 entity_type = payload.get('entity_type', 'article')
-                summary_data = await self.intelligence.generate_summary(text, entity_type=entity_type)
+                summary_data = await self.intelligence.generate_summary(
+                    text, 
+                    entity_type=entity_type,
+                    title=payload.get('title', ''),
+                    description=payload.get('description', ''),
+                    category=payload.get('category', '')
+                )
                 logger.info(f"Generated intelligence metadata: {list(summary_data.keys()) if summary_data else 'None'}")
 
             # 2. Chunk if missing
@@ -180,9 +187,9 @@ class JobProcessor:
             await self.elastic.update_vectors(job['entity_id'], nested_chunks, summary_data, index_name=job['target_index'])
 
             # 4. Emit Result Event
-            await self.emit_result(job['entity_id'], payload.get('entity_type'), summary_data, job['target_index'])
+            await self.emit_result(job['entity_id'], payload.get('entity_type'), summary_data, job['target_index'], payload)
 
-    async def emit_result(self, entity_id, entity_type, summary_data, index_name):
+    async def emit_result(self, entity_id, entity_type, summary_data, index_name, payload):
         if not summary_data:
             return
             
@@ -201,9 +208,13 @@ class JobProcessor:
         }
         
         try:
-            logger.info(f"Emitting result for {entity_id} to {settings.KAFKA_RESULT_TOPIC}")
+            topic = settings.KAFKA_RESULT_TOPIC
+            if payload.get('source_app') == "openstream":
+                topic = settings.OPENSTREAM_KAFKA_RESULT_TOPIC
+                
+            logger.info(f"Emitting result for {entity_id} to {topic}")
             await self.producer.send_and_wait(
-                settings.KAFKA_RESULT_TOPIC,
+                topic,
                 value=result_payload
             )
         except Exception as e:

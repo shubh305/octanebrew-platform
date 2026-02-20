@@ -28,7 +28,14 @@ class IntelligenceClient:
         
         return results
 
-    async def generate_summary(self, text: str, entity_type: str = "article") -> dict:
+    async def generate_summary(
+        self, 
+        text: str, 
+        entity_type: str = "article",
+        title: str = "",
+        description: str = "",
+        category: str = ""
+    ) -> dict:
         """
         Generate structured summary using LLM.
         
@@ -41,7 +48,13 @@ class IntelligenceClient:
         async with httpx.AsyncClient() as client:
             try:
                 system_prompt = get_system_prompt(entity_type)
-                user_prompt = get_user_prompt(text, entity_type)
+                user_prompt = get_user_prompt(
+                    text, 
+                    entity_type, 
+                    title=title, 
+                    description=description, 
+                    category=category
+                )
 
                 response = await client.post(
                     f"{self.base_url}/v1/chat/completions",

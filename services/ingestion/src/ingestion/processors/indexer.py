@@ -72,6 +72,12 @@ class ElasticManager:
             if 'entities' in summary_data:
                 doc["entities"] = summary_data['entities']
                 
+            if 'topic' in summary_data:
+                doc["topic"] = summary_data['topic']
+
+            if 'key_moments' in summary_data:
+                doc["key_moments"] = summary_data['key_moments']
+
             if 'language' in summary_data:
                 doc["language"] = summary_data['language']
         elif summary_data:
@@ -246,7 +252,7 @@ class ElasticManager:
                 }
             }
         search_body["_source"] = {
-            "includes": ["title", "summary", "metadata", "entity_id", "source_app", "chunks.text_chunk", "published_at", "entities", "key_concepts", "language"],
+            "includes": ["title", "summary", "metadata", "entity_id", "source_app", "chunks.text_chunk", "published_at", "entities", "key_concepts", "key_moments", "topic", "language"],
             "excludes": ["content", "chunks.vector"]
         }
 

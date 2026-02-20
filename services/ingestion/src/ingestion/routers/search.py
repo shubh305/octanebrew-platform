@@ -38,6 +38,11 @@ async def search_content(query_request: SearchRequest, request: Request):
         
         if query_request.enable_query_analysis:
             analysis = await intelligence.analyze_query(query_request.query)
+            
+            if analysis.get('original_intent') == 'Nonsense':
+                logger.info(f"Query flagged as nonsense: '{query_request.query}' — returning empty results")
+                return {"results": []}
+
             if analysis.get('detected_language') != 'en' and analysis.get('translated_query'):
                 search_query = analysis['translated_query']
                 logger.info(f"Query translated: '{query_request.query}' -> '{search_query}'")
