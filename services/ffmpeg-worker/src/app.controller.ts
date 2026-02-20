@@ -7,6 +7,10 @@ import {
 } from '@nestjs/microservices';
 import { VodFastLaneService } from './ffmpeg/vod-fast-lane.service';
 import { VodSlowLaneService } from './ffmpeg/vod-slow-lane.service';
+import {
+  ClipTranscodeService,
+  ClipTranscodePayload,
+} from './ffmpeg/clip-transcode.service';
 
 import { VodTranscodePayload } from './ffmpeg/ffmpeg-utils';
 
@@ -18,6 +22,7 @@ export class AppController {
   constructor(
     private readonly vodFastLane: VodFastLaneService,
     private readonly vodSlowLane: VodSlowLaneService,
+    private readonly clipTranscodeWorker: ClipTranscodeService,
   ) {}
 
   /** VOD upload pipeline — fast lane (480p HLS + thumbnail) */
@@ -64,6 +69,36 @@ export class AppController {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.logger.error(`Error in slow lane processing: ${errorMessage}`);
+      throw err;
+    }
+  }
+
+  /** Clip transcode pipeline — */
+  @EventPattern('clip.transcode')
+  async handleClipTranscode(
+    @Payload() message: Record<string, unknown>,
+    @Ctx() context: KafkaContext,
+  ) {
+    if (this.lane === 'fast') {
+      await this.commitOffset(context);
+      return;
+    }
+
+    this.logger.log(`Received clip transcode job: ${JSON.stringify(message)}`);
+
+    const payload = (message.value ?? message) as ClipTranscodePayload;
+    const heartbeat = context.getHeartbeat();
+    const heartbeatCallback = () => heartbeat();
+
+    try {
+      await this.clipTranscodeWorker.processClipTranscode(
+        payload,
+        heartbeatCallback,
+      );
+      await this.commitOffset(context);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Error in clip transcode processing: ${errorMessage}`);
       throw err;
     }
   }

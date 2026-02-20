@@ -36,7 +36,6 @@ export class FFmpegService implements OnModuleInit {
   async onModuleInit() {
     this.storageService =
       this.storageClient.getService<StorageServiceProxy>('StorageService');
-    this.apiClient.subscribeToResponseOf('video.processed');
     await this.apiClient.connect();
   }
 

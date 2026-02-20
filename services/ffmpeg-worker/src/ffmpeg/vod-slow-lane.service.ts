@@ -7,6 +7,51 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { ComplexityAnalyzerService } from './complexity-analyzer.service';
 import { FfmpegUtils, VodTranscodePayload } from './ffmpeg-utils';
 
+// Sprite helpers
+
+function computeSpriteParams(durationSeconds: number): {
+  interval: number;
+  cols: number;
+  rows: number;
+  frameCount: number;
+} {
+  const interval = durationSeconds < 600 ? 5 : durationSeconds < 3600 ? 10 : 20;
+  const frameCount = Math.ceil(durationSeconds / interval);
+  const cols = Math.ceil(Math.sqrt(frameCount));
+  const rows = Math.ceil(frameCount / cols);
+  return { interval, cols, rows, frameCount };
+}
+
+function toVttTime(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = (s % 60).toFixed(3).padStart(6, '0');
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${sec}`;
+}
+
+function generateVTT(
+  cdnSpriteUrl: string,
+  durationSeconds: number,
+  params: { interval: number; cols: number; frameCount: number },
+): string {
+  const { interval, cols, frameCount } = params;
+  const W = 160,
+    H = 90;
+  const lines = ['WEBVTT', ''];
+
+  for (let i = 0; i < frameCount; i++) {
+    const start = i * interval;
+    const end = Math.min((i + 1) * interval, durationSeconds);
+    const x = (i % cols) * W;
+    const y = Math.floor(i / cols) * H;
+
+    lines.push(toVttTime(start) + ' --> ' + toVttTime(end));
+    lines.push(`${cdnSpriteUrl}#xywh=${x},${y},${W},${H}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
 interface StorageServiceProxy {
   upload(data: {
     filename: string;
@@ -41,7 +86,6 @@ export class VodSlowLaneService implements OnModuleInit {
   async onModuleInit() {
     this.storageService =
       this.storageClient.getService<StorageServiceProxy>('StorageService');
-    this.apiClient.subscribeToResponseOf('video.complete');
     await this.apiClient.connect();
   }
 
@@ -119,13 +163,124 @@ export class VodSlowLaneService implements OnModuleInit {
         this.apiClient.emit('video.complete', completePayload),
       );
 
+      // Sprite generation
+      try {
+        this.logger.log(
+          `[SLOW][SPRITES] Starting sprite generation for ${videoId}`,
+        );
+
+        const durationSeconds = await FfmpegUtils.getVideoDuration(
+          this.configService,
+        )(sourcePath);
+
+        if (durationSeconds > 0) {
+          const params = computeSpriteParams(durationSeconds);
+          const { interval, cols, rows, frameCount } = params;
+          const spriteLocalPath = path.join(jobDir, 'sprites.jpg');
+
+          // Generate sprite sheet using the local source file
+          await FfmpegUtils.runFFmpeg(
+            this.configService,
+            [
+              '-y',
+              '-i',
+              sourcePath,
+              '-vf',
+              `fps=1/${interval},scale=160:90,tile=${cols}x${rows}`,
+              '-frames:v',
+              '1',
+              '-q:v',
+              '5',
+              spriteLocalPath,
+            ],
+            'SPRITES',
+          );
+
+          const cdnSpriteUrl = 'sprites.jpg';
+
+          const vttContent = generateVTT(cdnSpriteUrl, durationSeconds, params);
+
+          // Upload sprite JPG
+          const spriteKey = `vod/${videoId}/sprites/sprites.jpg`;
+          await firstValueFrom<{ url: string }>(
+            this.storageService.upload({
+              filename: spriteKey,
+              data: fs.readFileSync(spriteLocalPath),
+              bucket: this.bucket,
+              mimeType: 'image/jpeg',
+            }),
+          );
+
+          // Upload VTT
+          const vttKey = `vod/${videoId}/sprites/thumbnails.vtt`;
+          await firstValueFrom<{ url: string }>(
+            this.storageService.upload({
+              filename: vttKey,
+              data: Buffer.from(vttContent, 'utf-8'),
+              bucket: this.bucket,
+              mimeType: 'text/vtt',
+            }),
+          );
+
+          this.logger.log(
+            `[SLOW][SPRITES] Sprite sheet uploaded for ${videoId} (${frameCount} frames, ${interval}s interval)`,
+          );
+
+          // Emit completion
+          await firstValueFrom(
+            this.apiClient.emit('video.sprites.complete', {
+              videoId,
+              spritePath: spriteKey,
+              vttPath: vttKey,
+              frameCount,
+              interval,
+              cols,
+              rows,
+              ts: Date.now(),
+            }),
+          );
+        } else {
+          this.logger.warn(
+            `[SLOW][SPRITES] Duration 0 for ${videoId} — skipping sprite generation`,
+          );
+          await firstValueFrom(
+            this.apiClient.emit('video.sprites.complete', {
+              videoId,
+              failed: true,
+              reason: 'Could not determine video duration',
+              ts: Date.now(),
+            }),
+          );
+        }
+      } catch (spriteErr) {
+        const msg =
+          spriteErr instanceof Error ? spriteErr.message : String(spriteErr);
+        this.logger.warn(
+          `[SLOW][SPRITES] Sprite generation failed for ${videoId}: ${msg}`,
+        );
+        // Best-effort emit of failure
+        try {
+          await firstValueFrom(
+            this.apiClient.emit('video.sprites.complete', {
+              videoId,
+              failed: true,
+              reason: msg,
+              ts: Date.now(),
+            }),
+          );
+        } catch {
+          // ignore
+        }
+      }
+
       // Delete the original source recording from the local MinIO mount
-      FfmpegUtils.deleteFromStorage(
-        this.configService,
-        payload.bucket || this.bucket,
-        storagePath,
-        'SLOW',
-      );
+      // TODO : Re-enable this after testing
+      // FfmpegUtils.deleteFromStorage(
+      //   this.configService,
+      //   payload.bucket || this.bucket,
+      //   storagePath,
+      //   'SLOW',
+      // );
 
       FfmpegUtils.cleanupDir(jobDir, 'SLOW');
     } catch (err) {
@@ -147,121 +302,14 @@ export class VodSlowLaneService implements OnModuleInit {
     crf: number,
     onHeartbeat?: () => Promise<void> | void,
   ): Promise<void> {
-    const preset =
-      this.configService.get<string>('SLOW_LANE_PRESET') || 'veryfast';
-    const hlsTime = this.configService.get<string>('HLS_SEGMENT_TIME') || '4';
-
-    const crf720 = crf + 1;
-    const crf1080 = crf;
-
-    const playlist720 = path.join(hls720Dir, 'playlist.m3u8');
-    const playlist1080 = path.join(hls1080Dir, 'playlist.m3u8');
-    const seg720 = path.join(hls720Dir, 'seg_%03d.ts');
-    const seg1080 = path.join(hls1080Dir, 'seg_%03d.ts');
-
-    const filterGraph = [
-      '[0:v]split=2[v720][v1080]',
-      '[v720]scale=-2:720,format=yuv420p[out720]',
-      '[v1080]scale=-2:1080,format=yuv420p[out1080]',
-    ].join(';');
-
-    await FfmpegUtils.runFFmpeg(
+    await FfmpegUtils.transcodeDualResolution(
       this.configService,
-      [
-        '-y',
-        '-i',
-        input,
-        '-filter_complex',
-        filterGraph,
-
-        // ── 720p output ──
-        '-map',
-        '[out720]',
-        '-map',
-        '0:a?',
-        '-c:v',
-        'libx264',
-        '-preset',
-        preset,
-        '-crf',
-        String(crf720),
-        '-threads',
-        '2',
-        '-color_range',
-        '1',
-        '-colorspace',
-        'bt709',
-        '-color_primaries',
-        'bt709',
-        '-color_trc',
-        'bt709',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '96k',
-        '-ac',
-        '2',
-        '-g',
-        '60',
-        '-keyint_min',
-        '60',
-        '-sc_threshold',
-        '0',
-        '-hls_time',
-        hlsTime,
-        '-hls_playlist_type',
-        'vod',
-        '-hls_flags',
-        'independent_segments',
-        '-hls_segment_filename',
-        seg720,
-        playlist720,
-
-        // ── 1080p output ──
-        '-map',
-        '[out1080]',
-        '-map',
-        '0:a?',
-        '-c:v',
-        'libx264',
-        '-preset',
-        preset,
-        '-crf',
-        String(crf1080),
-        '-threads',
-        '2',
-        '-color_range',
-        '1',
-        '-colorspace',
-        'bt709',
-        '-color_primaries',
-        'bt709',
-        '-color_trc',
-        'bt709',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-ac',
-        '2',
-        '-g',
-        '60',
-        '-keyint_min',
-        '60',
-        '-sc_threshold',
-        '0',
-        '-hls_time',
-        hlsTime,
-        '-hls_playlist_type',
-        'vod',
-        '-hls_flags',
-        'independent_segments',
-        '-hls_segment_filename',
-        seg1080,
-        playlist1080,
-      ],
-      'SLOW',
+      input,
+      hls720Dir,
+      hls1080Dir,
+      crf,
       onHeartbeat,
+      'SLOW',
     );
   }
 

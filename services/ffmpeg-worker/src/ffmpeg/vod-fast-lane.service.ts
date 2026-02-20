@@ -39,7 +39,6 @@ export class VodFastLaneService implements OnModuleInit {
   async onModuleInit() {
     this.storageService =
       this.storageClient.getService<StorageServiceProxy>('StorageService');
-    this.apiClient.subscribeToResponseOf('video.playable');
     await this.apiClient.connect();
 
     // Ensure work directory exists
@@ -129,6 +128,32 @@ export class VodFastLaneService implements OnModuleInit {
         }),
       );
 
+      // Extract audio for Subtitle Pipeline
+      let audioPath = '';
+      try {
+        const audioOutputPath = path.join(jobDir, 'audio.wav');
+        await this.extractAudio(sourcePath, audioOutputPath, onHeartbeat);
+
+        if (fs.existsSync(audioOutputPath)) {
+          const audioKey = `vod/${videoId}/audio.wav`;
+          const audioBuffer = fs.readFileSync(audioOutputPath);
+          const { url: audioUrl } = await firstValueFrom<{ url: string }>(
+            this.storageService.upload({
+              filename: audioKey,
+              data: audioBuffer,
+              bucket: this.bucket,
+              mimeType: 'audio/wav',
+            }),
+          );
+          audioPath = audioUrl;
+          this.logger.log(`[FAST] Audio extracted and uploaded: ${audioKey}`);
+        }
+      } catch (audioErr) {
+        const msg =
+          audioErr instanceof Error ? audioErr.message : String(audioErr);
+        this.logger.warn(`[FAST] Audio extraction failed (non-fatal): ${msg}`);
+      }
+
       // 6. Emit playable event
       const playablePayload = {
         videoId,
@@ -143,6 +168,20 @@ export class VodFastLaneService implements OnModuleInit {
       await firstValueFrom(
         this.apiClient.emit('video.playable', playablePayload),
       );
+
+      // Emit subtitle request if audio was extracted
+      if (audioPath) {
+        this.logger.log(
+          `[FAST] Emitting video.subtitle.requests for ${videoId}`,
+        );
+        await firstValueFrom(
+          this.apiClient.emit('video.subtitle.requests', {
+            videoId,
+            audioPath,
+            ts: Date.now(),
+          }),
+        );
+      }
 
       FfmpegUtils.cleanupDir(jobDir, 'FAST');
     } catch (err) {
@@ -278,6 +317,34 @@ export class VodFastLaneService implements OnModuleInit {
         '-q:v',
         '2',
         '-update',
+        '1',
+        output,
+      ],
+      'FAST',
+      onHeartbeat,
+    );
+  }
+
+  /**
+   * Extract audio track as 16kHz mono WAV for Whisper transcription.
+   */
+  private async extractAudio(
+    input: string,
+    output: string,
+    onHeartbeat?: () => Promise<void> | void,
+  ): Promise<void> {
+    await FfmpegUtils.runFFmpeg(
+      this.configService,
+      [
+        '-y',
+        '-i',
+        input,
+        '-vn',
+        '-acodec',
+        'pcm_s16le',
+        '-ar',
+        '16000',
+        '-ac',
         '1',
         output,
       ],

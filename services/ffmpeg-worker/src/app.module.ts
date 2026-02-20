@@ -8,6 +8,7 @@ import { FFmpegService } from './ffmpeg/ffmpeg.service';
 import { VodFastLaneService } from './ffmpeg/vod-fast-lane.service';
 import { VodSlowLaneService } from './ffmpeg/vod-slow-lane.service';
 import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service';
+import { ClipTranscodeService } from './ffmpeg/clip-transcode.service';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service'
                 'worker-producer',
               ),
               maxPollInterval: 300000,
-              sessionTimeout: 60000,
+              sessionTimeout: 120000,
             },
           },
         }),
@@ -76,6 +77,7 @@ import { ComplexityAnalyzerService } from './ffmpeg/complexity-analyzer.service'
     VodFastLaneService,
     VodSlowLaneService,
     ComplexityAnalyzerService,
+    ClipTranscodeService,
   ],
 })
 export class AppModule {}
