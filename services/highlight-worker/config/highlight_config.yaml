@@ -1,0 +1,100 @@
+# Highlight Worker — Default Configuration
+# Each signal module can be enabled/disabled independently.
+# Weights control contribution to per-second scoring.
+
+scoring:
+  # Minimum aggregate score to qualify a second as "interesting"
+  qualification_threshold: 0.28
+  # Maximum number of highlight clips to extract
+  max_clips: 5
+  # Minimum clip duration in seconds
+  min_clip_duration: 8
+  # Maximum clip duration in seconds
+  max_clip_duration: 60
+  # Buffer before/after detected peak (seconds)
+  context_buffer: 3
+  # Minimum gap between clips (seconds) to avoid overlap
+  min_gap: 5
+
+signals:
+  audio_spike:
+    enabled: true
+    weight: 0.30
+    # Analysis hop size in seconds (0.25 for better short-event resolution)
+    hop_size: 0.25
+    # Z-score threshold for spike detection (adapts to stream baseline)
+    zscore_threshold: 2.5
+    # Peak-RMS delta in dB to flag transient impacts (gunshots etc.)
+    transient_delta_db: 10.0
+    # Run a high-frequency pass (highpass=2000 Hz) to boost cheer/applause detection
+    highfreq_boost: true
+    # Window-based spike confirmation
+    window_seconds: 2.0
+    min_spike_count: 2
+
+  scene_change:
+    enabled: true
+    weight: 0.25
+    # Lower collection threshold — z-score determines actual triggers
+    base_threshold: 0.10
+    # Z-score threshold over collected scene values
+    zscore_threshold: 2.5
+    # Dynamic min_interval: max(1.0, 2.0 - graded_score)
+    dynamic_interval: true
+    # Boost score when per-frame luminance delta spikes (flashbangs, explosions)
+    luminance_boost: true
+    # Mean-Y delta > this value triggers luminance boost
+    luminance_delta_threshold: 20.0
+
+  chat_spike:
+    enabled: false
+    weight: 0.20
+    # Bucket size for message counting (seconds)
+    bucket_size: 10
+    # Multiplier over median to qualify as "spike"
+    spike_multiplier: 2.5
+
+  ocr_keyword:
+    enabled: true
+    weight: 0.25
+    # Interval between frame samples (seconds)
+    sample_interval: 1.0
+    # Confidence threshold for Tesseract (0-100)
+    confidence_threshold: 60
+
+  vtt_semantic:
+    enabled: true
+    weight: 0.20
+    # Window in seconds for cumulative score aggregation
+    window_seconds: 3.0
+    # Boost score when exclamation marks appear ≥ 2 times
+    repetition_boost: true
+    # Boost score when escalation phrase precedes hype within 2s
+    escalation_boost: true
+    # Reduce score when negation phrases detected
+    negation_filter: true
+
+governance:
+  # Maximum sustained CPU usage (percent) before self-throttling
+  max_cpu_percent: 85
+  # Maximum memory usage in MB
+  max_memory_mb: 900
+  # Polling interval for resource checks (seconds)
+  poll_interval: 10
+  # Job timeout in seconds (default 30 min)
+  job_timeout: 1800
+  # Nice priority for ffmpeg subprocesses
+  nice_priority: 15
+
+redis:
+  # Lock key prefix
+  lock_key: "highlight:lock"
+  # Lock TTL in seconds (30 min)
+  lock_ttl: 1800
+
+extraction:
+  # Use stream copy for clip extraction
+  stream_copy: true
+  # Thumbnail extraction at clip midpoint
+  thumbnail_width: 640
+  thumbnail_height: 360
