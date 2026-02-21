@@ -2,7 +2,7 @@
 
 **Status:** `OPERATIONAL` // **Version:** `2026.02`
 
-The **OctaneBrew Platform** is the high-performance administrative command center and shared infrastructure backbone for the OctaneBrew ecosystem. It employs a **Hub-and-Spoke Architecture**, where a centralized "Core Hub" provides critical multi-tenant services (AI, Storage, Event Streaming, Ingestion) to decentralized "Spoke Applications" like **OpenStream** and **Conduit**.
+The **OctaneBrew Platform** is the high-performance administrative command center and shared infrastructure backbone for the OctaneBrew ecosystem. It employs a **Hub-and-Spoke Architecture**, where a centralized "Core Hub" provides critical multi-tenant services (AI, Storage, Event Streaming, Ingestion, Highlights) to decentralized "Spoke Applications" like **OpenStream** and **Conduit**. 
 
 ---
 
@@ -69,6 +69,7 @@ Each service in the `./services` directory serves a specific architectural role 
 | **Storage** | [`/storage-service`](./services/storage-service/README.md) | Multi-tenant gRPC/S3 object orchestration. | MinIO, NestJS, gRPC |
 | **Analytics*** | [`/analytics`](./services/analytics/README.md) | ClickHouse-backed event telemetry warehouse. | ClickHouse, KafkaJS |
 | **Compute** | [`/ffmpeg-worker`](./services/ffmpeg-worker/README.md) | Headless FFmpeg transcoding & worker mesh. | FFmpeg, NestJS, Kafka |
+| **Highlights** | [`/highlight-worker`](./services/highlight-worker/README.md) | CPU-optimized media signal extractor and AI summarizer. | Python, FFmpeg, Gemini |
 
 ---
 

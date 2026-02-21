@@ -5,6 +5,10 @@ x-ffmpeg-base: &ffmpeg-base
     dockerfile: Dockerfile
   volumes:
     - /mnt/data/minio/data:/minio_data:rw
+    - type: tmpfs
+      target: /tmp/ffmpeg-work
+      tmpfs:
+        size: 4096M
   networks:
     - octane-net
   depends_on:
@@ -21,6 +25,7 @@ x-ffmpeg-base: &ffmpeg-base
     KAFKA_SASL_PASS: ${KAFKA_BROKER_PASS}
     STORAGE_SERVICE_URL: storage-service:50051
     HLS_SEGMENT_TIME: "4"
+    MINIO_BUCKET: ${MINIO_BUCKET}
 
 services:
   # --- NGINX GATEWAY & SSL ---
@@ -101,7 +106,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '0.5'
           memory: 3G
 
   ffmpeg-worker-slow:
@@ -116,7 +121,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '1.5'
           memory: 6G
 
   # --- KAFKA ECOSYSTEM ---
@@ -171,6 +176,11 @@ services:
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2G
 
     volumes:
       - ${KAFKA_DATA_DIR}:/var/lib/kafka/data
@@ -205,9 +215,14 @@ services:
       - xpack.security.enabled=true
       - xpack.security.authc.api_key.enabled=true
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+      - ES_JAVA_OPTS=-Xms4g -Xmx4g
     volumes:
       - ${ELASTIC_DATA_DIR}:/usr/share/elasticsearch/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 6G
     networks:
       - octane-net
 
@@ -222,6 +237,11 @@ services:
     volumes:
       - ${MONGO_DATA_DIR}:/data/db
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 4G
     networks:
       - octane-net
 
@@ -373,7 +393,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_ENDPOINT: minio
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
       MINIO_PORT: ${MINIO_PORT}
       STORAGE_PUBLIC_HOST: ${STORAGE_PUBLIC_HOST}
     depends_on:
@@ -450,7 +470,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
     depends_on:
       - redis
@@ -469,7 +489,7 @@ services:
       - AI_MODELS=${AI_MODELS}
       - DEFAULT_EMBEDDING_MODEL=${DEFAULT_EMBEDDING_MODEL}
       - DEFAULT_OPENAI_EMBEDDING_MODEL=${DEFAULT_OPENAI_EMBEDDING_MODEL}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
     networks:
       - octane-net
@@ -489,13 +509,15 @@ services:
       - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
       - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
       - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
+      - OPENSTREAM_KAFKA_TOPIC=${OPENSTREAM_KAFKA_TOPIC}
+      - OPENSTREAM_KAFKA_RESULT_TOPIC=${OPENSTREAM_KAFKA_RESULT_TOPIC}
       - ES_HOST=${ES_HOST}
       - ELASTIC_USER=${ELASTIC_USER}
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - EMBEDDING_DIMS=${EMBEDDING_DIMS}
       - ES_INDEX_NAME=${ES_INDEX_NAME}
       - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
       - POSTGRES_DSN=${POSTGRES_DSN}
       - SUMMARY_MODEL=${SUMMARY_MODEL}
@@ -508,8 +530,8 @@ services:
     networks:
       - octane-net
     # extra_hosts:
-    #  - "broker.octanebrew.dev:129.154.43.166"
-    #  - "elastic.octanebrew.dev:172.67.169.35"
+    #   - "broker.octanebrew.dev:${BROKER_IP}"
+    #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
 
   ingestion-worker:
     build: 
@@ -524,6 +546,8 @@ services:
       - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
       - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
       - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
+      - OPENSTREAM_KAFKA_TOPIC=${OPENSTREAM_KAFKA_TOPIC}
+      - OPENSTREAM_KAFKA_RESULT_TOPIC=${OPENSTREAM_KAFKA_RESULT_TOPIC}
       - KAFKA_GROUP_ID=${INGESTION_KAFKA_GROUP_ID}
       - ES_HOST=${ES_HOST}
       - ELASTIC_USER=${ELASTIC_USER}
@@ -531,7 +555,7 @@ services:
       - EMBEDDING_DIMS=${EMBEDDING_DIMS}
       - ES_INDEX_NAME=${ES_INDEX_NAME}
       - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
       - POSTGRES_DSN=${POSTGRES_DSN}
       - SUMMARY_MODEL=${SUMMARY_MODEL}
@@ -544,8 +568,8 @@ services:
     networks:
       - octane-net
     # extra_hosts:
-    #  - "broker.octanebrew.dev:129.154.43.166"
-    #  - "elastic.octanebrew.dev:172.67.169.35"
+    #   - "broker.octanebrew.dev:${BROKER_IP}"
+    #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s
@@ -567,12 +591,16 @@ services:
       - EMBEDDING_DIMS=${EMBEDDING_DIMS}
       - ES_INDEX_NAME=${ES_INDEX_NAME}
       - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
       - POSTGRES_DSN=${POSTGRES_DSN}
       - SUMMARY_MODEL=${SUMMARY_MODEL}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL}
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_TOPIC=${INGESTION_KAFKA_TOPIC}
+      - KAFKA_RESULT_TOPIC=${INGESTION_KAFKA_RESULT_TOPIC}
+      - OPENSTREAM_KAFKA_TOPIC=${OPENSTREAM_KAFKA_TOPIC}
+      - OPENSTREAM_KAFKA_RESULT_TOPIC=${OPENSTREAM_KAFKA_RESULT_TOPIC}
       - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
       - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
     depends_on:
@@ -582,12 +610,83 @@ services:
     networks:
       - octane-net
     # extra_hosts:
-    #  - "elastic.octanebrew.dev:172.67.169.35"
+    #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s
       timeout: 5s
       retries: 3
+
+  # --- CONTENT INTELLIGENCE LAYER ---
+  highlight-worker:
+    build:
+      context: ./services/highlight-worker
+      dockerfile: Dockerfile
+    container_name: highlight-worker
+    volumes:
+      - ${MINIO_DATA_DIR}:/minio_data:rw
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 2048M
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
+      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}:${MINIO_PORT}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - REDIS_URL=${REDIS_URL}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - OPENSTREAM_VOL_PATH=${OPENSTREAM_VOL_PATH}
+      - MAX_CPU_PERCENT=${MAX_CPU_PERCENT}
+      - MAX_MEMORY_MB=${MAX_MEMORY_MB}
+      - JOB_TIMEOUT_SECONDS=${JOB_TIMEOUT_SECONDS}
+    depends_on:
+      - kafka
+      - minio
+      - intelligence-svc
+      - redis
+    networks:
+      - octane-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    extra_hosts:
+      - "broker.octanebrew.dev:${BROKER_IP}"
+
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: faster-whisper
+    ports:
+      - "8090:8090"
+    environment:
+      - WHISPER__MODEL=${WHISPER_MODEL:-Systran/faster-whisper-small}
+      - WHISPER__DEVICE=cpu
+      - WHISPER__COMPUTE_TYPE=int8
+      - UVICORN_PORT=8090
+    networks:
+      - octane-net
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 1024M
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
 
 
 
