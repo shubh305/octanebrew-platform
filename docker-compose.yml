@@ -662,8 +662,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    extra_hosts:
-      - "broker.octanebrew.dev:${BROKER_IP}"
+    #extra_hosts:
+    #  - "broker.octanebrew.dev:${BROKER_IP}"
 
   faster-whisper:
     image: fedirz/faster-whisper-server:latest-cpu
