@@ -115,8 +115,14 @@ export class VodSlowLaneService implements OnModuleInit {
 
       // 2. Run complexity analysis
       const complexity = await this.complexityAnalyzer.analyze(sourcePath);
+      const duration = await FfmpegUtils.getVideoDuration(this.configService)(
+        sourcePath,
+      );
+      const slowPreset =
+        this.configService.get<string>('SLOW_LANE_PRESET') || 'superfast';
+
       this.logger.log(
-        `[SLOW] Complexity: score=${complexity.score}, CRF=${complexity.crf}`,
+        `[SLOW] Complexity: score=${complexity.score}, CRF=${complexity.crf}, Duration: ${duration}s, Preset: ${slowPreset}`,
       );
 
       // 3. Transcode 720p first (sequential pipeline)
@@ -128,6 +134,7 @@ export class VodSlowLaneService implements OnModuleInit {
         hls720Dir,
         '720p',
         complexity.crf + 1,
+        slowPreset,
         onHeartbeat,
         'SLOW',
       );
@@ -169,6 +176,7 @@ export class VodSlowLaneService implements OnModuleInit {
         hls1080Dir,
         '1080p',
         complexity.crf,
+        slowPreset,
         onHeartbeat,
         'SLOW',
       );

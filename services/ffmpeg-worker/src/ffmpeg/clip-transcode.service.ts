@@ -84,12 +84,15 @@ export class ClipTranscodeService {
 
       // 2. Transcode to 1080p then 720p HLS sequentially
       const crf = crfValue || 23;
+      const slowPreset =
+        this.configService.get<string>('SLOW_LANE_PRESET') || 'superfast';
       await FfmpegUtils.transcodeSingleResolution(
         this.configService,
         localInputPath,
         hls1080Dir,
         '1080p',
         crf,
+        slowPreset,
         onHeartbeat,
         'ClipTranscode-1080p',
       );
@@ -99,6 +102,7 @@ export class ClipTranscodeService {
         hls720Dir,
         '720p',
         crf + 1,
+        slowPreset,
         onHeartbeat,
         'ClipTranscode-720p',
       );

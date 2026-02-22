@@ -210,6 +210,8 @@ export class VodFastLaneService implements OnModuleInit {
     const preset = this.configService.get<string>('FAST_LANE_PRESET') || 'fast';
     const hlsTime = this.configService.get<string>('HLS_SEGMENT_TIME') || '4';
 
+    this.logger.log(`[FAST] Transcoding to 480p with preset: ${preset}`);
+
     await FfmpegUtils.runFFmpeg(
       this.configService,
       [

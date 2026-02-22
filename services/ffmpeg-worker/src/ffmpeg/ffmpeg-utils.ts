@@ -257,10 +257,10 @@ export class FfmpegUtils {
     hlsDir: string,
     resolution: '720p' | '1080p',
     crf: number,
+    preset = 'fast',
     onHeartbeat?: () => Promise<void> | void,
     serviceName = 'FFMPEG-SEQ',
   ): Promise<void> {
-    const preset = config.get<string>('FFMPEG_PRESET') || 'fast';
     const hlsTime = config.get<string>('HLS_SEGMENT_TIME') || '4';
 
     const playlist = path.join(hlsDir, 'playlist.m3u8');
