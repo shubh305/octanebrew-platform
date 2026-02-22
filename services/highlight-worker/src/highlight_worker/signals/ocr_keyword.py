@@ -175,7 +175,7 @@ class OCRKeywordSignal(BaseSignal):
         confidence_threshold = int(config.get("confidence_threshold", 60))
         duration = kwargs.get("duration", 0)
         sample_interval = float(config.get("sample_interval", 1.0))
-        max_frames = config.get("max_frames", 900)
+        max_frames = config.get("max_frames", 450)
 
         # Check Tesseract availability
         try:
@@ -210,13 +210,13 @@ class OCRKeywordSignal(BaseSignal):
                 logger.info(f"OCR: Target-Pass triggered — scanning {len(sorted_targets)} candidate seconds")
             else:
                 # Adjust interval for very long videos to stay under timeout
-                if duration > 600:
-                    sample_interval = max(sample_interval, duration / 600)
+                if duration > max_frames:
+                    sample_interval = max(sample_interval, duration / max_frames)
                     logger.info(f"OCR: Long video detected (Pass 1 fallback), adaptive sample_interval={sample_interval:.2f}s")
                 fps_filter = f"fps=1/{sample_interval}"
 
-            # Preprocess in FFmpeg: maintain 480p, grayscale, contrast boost
-            vf_filter = "scale=854:480,format=gray,eq=contrast=1.4:brightness=0.05"
+            # Preprocess in FFmpeg: sub-scale for faster Tesseract and cv2 parsing
+            vf_filter = "scale=426:240,format=gray,eq=contrast=1.4:brightness=0.05"
 
             ffmpeg_cmd = [
                 "nice", "-n", "15",

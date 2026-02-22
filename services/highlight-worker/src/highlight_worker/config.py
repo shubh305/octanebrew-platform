@@ -183,7 +183,7 @@ def _default_config() -> dict:
             "lock_ttl": 1800,
         },
         "extraction": {
-            "stream_copy": True,
+            "stream_copy": False,
             "thumbnail_width": 640,
             "thumbnail_height": 360,
         },

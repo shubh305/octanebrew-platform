@@ -47,7 +47,7 @@ class SceneChangeSignal(BaseSignal):
         # ── Collect scene scores via scdet + showinfo
         cmd = [
             "ffmpeg", "-i", proxy_path,
-            "-vf", "scdet=t=0.01,showinfo",
+            "-vf", "scale=160:-2,scdet=t=0.01,showinfo",
             "-f", "null", "-"
         ]
         proc = await asyncio.create_subprocess_exec(

@@ -27,7 +27,7 @@ async def extract_clip(
     duration = end - start
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    codec_args = ["-c", "copy"] if stream_copy else ["-c:v", "libx264", "-preset", "ultrafast"]
+    codec_args = ["-c", "copy"] if stream_copy else ["-c:v", "libx264", "-preset", "ultrafast", "-profile:v", "baseline", "-tune", "zerolatency", "-threads", "1"]
 
     cmd = [
         "ffmpeg", "-y",
@@ -76,7 +76,7 @@ async def extract_thumbnail(
         "-ss", str(timestamp),
         "-i", source_path,
         "-vframes", "1",
-        "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease",
+        "-vf", f"scale={int(width/2)}:{int(height/2)}:force_original_aspect_ratio=decrease",
         output_path,
     ]
 

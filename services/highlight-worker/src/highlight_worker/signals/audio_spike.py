@@ -119,10 +119,10 @@ class AudioSpikeSignal(BaseSignal):
         return results
 
     async def detect(self, proxy_path: str, config: dict, **kwargs) -> dict[int, float]:
-        hop = float(config.get("hop_size", 0.25))
+        hop = float(config.get("hop_size", 0.5))
         zscore_threshold = float(config.get("zscore_threshold", 2.0))
         transient_delta_db = float(config.get("transient_delta_db", 6.0))
-        highfreq_boost = bool(config.get("highfreq_boost", True))
+        highfreq_boost = bool(config.get("highfreq_boost", False))
         window_seconds = float(config.get("window_seconds", 2.0))
         min_spike_count = int(config.get("min_spike_count", 2))
 
@@ -139,7 +139,7 @@ class AudioSpikeSignal(BaseSignal):
         peak_values = [r[2] for r in records]
 
         # Use a 30-second rolling window
-        samples_per_window = int(30.0 / hop) if hop > 0 else 120
+        samples_per_window = int(30.0 / hop) if hop > 0 else 60
         rms_z = _rolling_zscore(rms_values, samples_per_window, silence_thresh=-50.0)
         
         active_rms = [v for v in rms_values if v >= -50.0]
