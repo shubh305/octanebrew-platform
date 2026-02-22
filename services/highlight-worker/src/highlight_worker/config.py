@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     # Resource Governance
     MAX_CPU_PERCENT: int = 60
     MAX_MEMORY_MB: int = 900
-    JOB_TIMEOUT_SECONDS: int = 1800
+    JOB_TIMEOUT_SECONDS: int = 7200
 
     # Paths
     CONFIG_PATH: str = Field(
@@ -175,7 +175,7 @@ def _default_config() -> dict:
             "max_cpu_percent": 60,
             "max_memory_mb": 900,
             "poll_interval": 10,
-            "job_timeout": 1800,
+            "job_timeout": 7200,
             "nice_priority": 15,
         },
         "redis": {

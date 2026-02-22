@@ -140,7 +140,7 @@ async def run_highlight_job(payload: dict) -> dict:
             sig_start = time.time()
             result = await asyncio.wait_for(
                 signal.detect(proxy_path, sig_cfg, chat_path=payload.get("chatPath"), vtt_path=vtt_path, duration=duration),
-                timeout=governance_cfg.get("job_timeout", 1800) // 2
+                timeout=governance_cfg.get("job_timeout", settings.JOB_TIMEOUT_SECONDS)
             )
             signal_outputs[sig_name] = result
             logger.info(f"Pass 1: Signal '{sig_name}' complete ({time.time() - sig_start:.1f}s)")
@@ -167,7 +167,7 @@ async def run_highlight_job(payload: dict) -> dict:
             sig_start = time.time()
             result = await asyncio.wait_for(
                 signal.detect(proxy_path, sig_cfg, duration=duration, target_seconds=list(candidate_seconds)),
-                timeout=governance_cfg.get("job_timeout", 1800) // 2
+                timeout=governance_cfg.get("job_timeout", settings.JOB_TIMEOUT_SECONDS)
             )
             signal_outputs[sig_name] = result
             logger.info(f"Pass 2: OCR complete on {len(candidate_seconds)} candidate seconds ({time.time() - sig_start:.1f}s)")
@@ -353,10 +353,10 @@ def _find_vtt(video_id: str) -> str | None:
     vtt_path_uploads = f"{vol}/openstream-uploads/subtitles/{video_id}/en.vtt"
     vtt_path_default = f"{vol}/{bucket}/subtitles/{video_id}/en.vtt"
     
-    if os.path.exists(vtt_path_uploads):
+    if os.path.isfile(vtt_path_uploads):
         logger.info(f"Found VTT file locally: {vtt_path_uploads}")
         return vtt_path_uploads
-    elif os.path.exists(vtt_path_default):
+    elif os.path.isfile(vtt_path_default):
         logger.info(f"Found VTT file locally: {vtt_path_default}")
         return vtt_path_default
 

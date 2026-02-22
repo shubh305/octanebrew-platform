@@ -189,7 +189,7 @@ Key tunable parameters:
 | `SERVICE_API_KEY` | | — | Intelligence API key |
 | `MAX_CPU_PERCENT` | | `60` | CPU self-throttle % |
 | `MAX_MEMORY_MB` | | `900` | Memory limit in MB |
-| `JOB_TIMEOUT_SECONDS` | | `1800` | Max job duration |
+| `JOB_TIMEOUT_SECONDS` | | `7200` | Max job duration |
 | `LOG_LEVEL` | | `INFO` | Logging level |
 
 ## Resource Governance & Guardrails

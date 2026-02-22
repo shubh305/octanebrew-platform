@@ -81,8 +81,8 @@ governance:
   max_memory_mb: 900
   # Polling interval for resource checks (seconds)
   poll_interval: 10
-  # Job timeout in seconds (default 30 min)
-  job_timeout: 1800
+  # Job timeout in seconds (default 2 hours)
+  job_timeout: 7200
   # Nice priority for ffmpeg subprocesses
   nice_priority: 15
 

@@ -103,8 +103,8 @@ class VttSemanticSignal(BaseSignal):
 
     async def detect(self, proxy_path: str, config: dict, **kwargs) -> dict[int, float]:
         vtt_path = kwargs.get("vtt_path")
-        if not vtt_path or not Path(vtt_path).exists():
-            logger.info("VttSemantic: no en.vtt found — skipping")
+        if not vtt_path or not Path(vtt_path).is_file():
+            logger.info("VttSemantic: no valid en.vtt file found — skipping")
             return {}
 
         window_seconds = float(config.get("window_seconds", 3.0))
