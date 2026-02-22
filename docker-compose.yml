@@ -8,7 +8,7 @@ x-ffmpeg-base: &ffmpeg-base
     - type: tmpfs
       target: /tmp/ffmpeg-work
       tmpfs:
-        size: 4096M
+        size: 1024M
   networks:
     - octane-net
   depends_on:
@@ -117,12 +117,12 @@ services:
       PROCESS_LANE: slow
       KAFKA_FFMPEG_CONSUMER_GROUP_ID: ffmpeg-worker-slow
       KAFKA_FFMPEG_PRODUCER_GROUP_ID: ffmpeg-slow-producer
-      SLOW_LANE_PRESET: veryfast
+      SLOW_LANE_PRESET: superfast
     deploy:
       resources:
         limits:
           cpus: '1.5'
-          memory: 6G
+          memory: 4G
 
   # --- KAFKA ECOSYSTEM ---
   kafka:
@@ -491,10 +491,18 @@ services:
       - DEFAULT_OPENAI_EMBEDDING_MODEL=${DEFAULT_OPENAI_EMBEDDING_MODEL}
       - REDIS_URL=${REDIS_URL}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     networks:
       - octane-net
     depends_on:
       - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
   
   ingestion-svc:
     build: 
@@ -522,6 +530,9 @@ services:
       - POSTGRES_DSN=${POSTGRES_DSN}
       - SUMMARY_MODEL=${SUMMARY_MODEL}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     depends_on:
       - kafka
       - elasticsearch
@@ -529,6 +540,11 @@ services:
       - redis
     networks:
       - octane-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1.5G
     # extra_hosts:
     #   - "broker.octanebrew.dev:${BROKER_IP}"
     #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
@@ -560,6 +576,9 @@ services:
       - POSTGRES_DSN=${POSTGRES_DSN}
       - SUMMARY_MODEL=${SUMMARY_MODEL}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     depends_on:
       - kafka
       - elasticsearch
@@ -567,6 +586,11 @@ services:
       - redis
     networks:
       - octane-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1.5G
     # extra_hosts:
     #   - "broker.octanebrew.dev:${BROKER_IP}"
     #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
@@ -603,12 +627,21 @@ services:
       - OPENSTREAM_KAFKA_RESULT_TOPIC=${OPENSTREAM_KAFKA_RESULT_TOPIC}
       - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
       - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     depends_on:
       - intelligence-svc
       - redis
       - postgres
     networks:
       - octane-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
     # extra_hosts:
     #   - "elastic.octanebrew.dev:${ELASTIC_IP}"
     healthcheck:
@@ -628,7 +661,7 @@ services:
       - type: tmpfs
         target: /tmp
         tmpfs:
-          size: 2048M
+          size: 1024M
     environment:
       - PYTHONUNBUFFERED=1
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
@@ -645,6 +678,9 @@ services:
       - MAX_CPU_PERCENT=${MAX_CPU_PERCENT}
       - MAX_MEMORY_MB=${MAX_MEMORY_MB}
       - JOB_TIMEOUT_SECONDS=${JOB_TIMEOUT_SECONDS}
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     depends_on:
       - kafka
       - minio
@@ -656,7 +692,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 1G
+          memory: 4G
     healthcheck:
       test: ["CMD", "find", "/tmp/healthy", "-mmin", "-1"]
       interval: 10s
@@ -675,18 +711,20 @@ services:
       - WHISPER__DEVICE=cpu
       - WHISPER__COMPUTE_TYPE=int8
       - UVICORN_PORT=8090
+      - WHISPER__CPU_THREADS=1
+      - OMP_NUM_THREADS=1
     networks:
       - octane-net
     volumes:
       - type: tmpfs
         target: /tmp
         tmpfs:
-          size: 1024M
+          size: 2048M
     deploy:
       resources:
         limits:
           cpus: '1.0'
-          memory: 2G
+          memory: 6G
 
 
 

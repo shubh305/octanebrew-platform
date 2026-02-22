@@ -82,16 +82,25 @@ export class ClipTranscodeService {
         localInputPath,
       );
 
-      // 2. Transcode to 720p + 1080p HLS
+      // 2. Transcode to 1080p then 720p HLS sequentially
       const crf = crfValue || 23;
-      await FfmpegUtils.transcodeDualResolution(
+      await FfmpegUtils.transcodeSingleResolution(
+        this.configService,
+        localInputPath,
+        hls1080Dir,
+        '1080p',
+        crf,
+        onHeartbeat,
+        'ClipTranscode-1080p',
+      );
+      await FfmpegUtils.transcodeSingleResolution(
         this.configService,
         localInputPath,
         hls720Dir,
-        hls1080Dir,
-        crf,
+        '720p',
+        crf + 1,
         onHeartbeat,
-        'ClipTranscode',
+        'ClipTranscode-720p',
       );
 
       // 3. Create Master Manifest

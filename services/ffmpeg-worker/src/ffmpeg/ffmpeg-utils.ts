@@ -249,33 +249,28 @@ export class FfmpegUtils {
   }
 
   /**
-   * Single-pass dual-resolution encode (720p + 1080p)
+   * Dedicated single-pass encoder for a single resolution
    */
-  static async transcodeDualResolution(
+  static async transcodeSingleResolution(
     config: ConfigService,
     input: string,
-    hls720Dir: string,
-    hls1080Dir: string,
+    hlsDir: string,
+    resolution: '720p' | '1080p',
     crf: number,
     onHeartbeat?: () => Promise<void> | void,
-    serviceName = 'FFMPEG',
+    serviceName = 'FFMPEG-SEQ',
   ): Promise<void> {
     const preset = config.get<string>('FFMPEG_PRESET') || 'fast';
     const hlsTime = config.get<string>('HLS_SEGMENT_TIME') || '4';
 
-    const crf720 = crf + 1;
-    const crf1080 = crf;
+    const playlist = path.join(hlsDir, 'playlist.m3u8');
+    const seg = path.join(hlsDir, 'seg_%03d.ts');
 
-    const playlist720 = path.join(hls720Dir, 'playlist.m3u8');
-    const playlist1080 = path.join(hls1080Dir, 'playlist.m3u8');
-    const seg720 = path.join(hls720Dir, 'seg_%03d.ts');
-    const seg1080 = path.join(hls1080Dir, 'seg_%03d.ts');
-
-    const filterGraph = [
-      '[0:v]split=2[v720][v1080]',
-      '[v720]scale=-2:720,format=yuv420p[out720]',
-      '[v1080]scale=-2:1080,format=yuv420p[out1080]',
-    ].join(';');
+    const scaleFilter =
+      resolution === '720p'
+        ? 'scale=-2:720,format=yuv420p'
+        : 'scale=-2:1080,format=yuv420p';
+    const bitrate = resolution === '720p' ? '128k' : '192k';
 
     await this.runFFmpeg(
       config,
@@ -283,22 +278,18 @@ export class FfmpegUtils {
         '-y',
         '-i',
         input,
-        '-filter_complex',
-        filterGraph,
-
-        // ── 720p output ──
-        '-map',
-        '[out720]',
-        '-map',
-        '0:a?',
+        '-threads',
+        '2',
+        '-vf',
+        scaleFilter,
         '-c:v',
         'libx264',
         '-preset',
         preset,
         '-crf',
-        String(crf720),
-        '-threads',
-        '2',
+        String(crf),
+        '-profile:v',
+        'main',
         '-color_range',
         '1',
         '-colorspace',
@@ -310,7 +301,7 @@ export class FfmpegUtils {
         '-c:a',
         'aac',
         '-b:a',
-        '128k',
+        bitrate,
         '-ac',
         '2',
         '-g',
@@ -326,53 +317,10 @@ export class FfmpegUtils {
         '-hls_flags',
         'independent_segments',
         '-hls_segment_filename',
-        seg720,
-        playlist720,
-
-        // ── 1080p output ──
-        '-map',
-        '[out1080]',
-        '-map',
-        '0:a?',
-        '-c:v',
-        'libx264',
-        '-preset',
-        preset,
-        '-crf',
-        String(crf1080),
-        '-threads',
-        '2',
-        '-color_range',
-        '1',
-        '-colorspace',
-        'bt709',
-        '-color_primaries',
-        'bt709',
-        '-color_trc',
-        'bt709',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '192k',
-        '-ac',
-        '2',
-        '-g',
-        '60',
-        '-keyint_min',
-        '60',
-        '-sc_threshold',
-        '0',
-        '-hls_time',
-        hlsTime,
-        '-hls_playlist_type',
-        'vod',
-        '-hls_flags',
-        'independent_segments',
-        '-hls_segment_filename',
-        seg1080,
-        playlist1080,
+        seg,
+        playlist,
       ],
-      serviceName,
+      `${serviceName}-${resolution}`,
       onHeartbeat,
     );
   }

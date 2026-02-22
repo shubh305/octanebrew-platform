@@ -119,30 +119,70 @@ export class VodSlowLaneService implements OnModuleInit {
         `[SLOW] Complexity: score=${complexity.score}, CRF=${complexity.crf}`,
       );
 
-      // 3. Transcode 720p + 1080p in a single FFmpeg pass
+      // 3. Transcode 720p first (sequential pipeline)
       const hls720Dir = path.join(jobDir, '720p');
-      const hls1080Dir = path.join(jobDir, '1080p');
       fs.mkdirSync(hls720Dir, { recursive: true });
-      fs.mkdirSync(hls1080Dir, { recursive: true });
-      await this.transcodeBothResolutions(
+      await FfmpegUtils.transcodeSingleResolution(
+        this.configService,
         sourcePath,
         hls720Dir,
-        hls1080Dir,
-        complexity.crf,
+        '720p',
+        complexity.crf + 1,
         onHeartbeat,
+        'SLOW',
       );
 
-      // 5. Upload segments
+      // Upload and Emit early 720p
       await this.uploadHLSDir(videoId, '720p', hls720Dir);
-      await this.uploadHLSDir(videoId, '1080p', hls1080Dir);
-
-      // 6. Master playlist
       const masterManifest = this.buildMasterPlaylist();
       const masterKey = `vod/${videoId}/master.m3u8`;
-      const { url: masterUrl } = await firstValueFrom<{ url: string }>(
+      const { url: earlyMasterUrl } = await firstValueFrom<{ url: string }>(
         this.storageService.upload({
           filename: masterKey,
           data: Buffer.from(masterManifest, 'utf-8'),
+          bucket: this.bucket,
+          mimeType: 'application/vnd.apple.mpegurl',
+        }),
+      );
+
+      // Emit early complete so the frontend triggers "Playable" state
+      this.logger.log(
+        `[SLOW] Emitting early video.complete for ${videoId} @ 720p`,
+      );
+      await firstValueFrom(
+        this.apiClient.emit('video.complete', {
+          videoId,
+          crfUsed: complexity.crf + 1,
+          complexityScore: complexity.score,
+          resolutions: ['480p', '720p'],
+          hlsManifest: earlyMasterUrl,
+          ts: Date.now(),
+        }),
+      );
+
+      // 4. Transcode 1080p next (sequential pipeline)
+      const hls1080Dir = path.join(jobDir, '1080p');
+      fs.mkdirSync(hls1080Dir, { recursive: true });
+      await FfmpegUtils.transcodeSingleResolution(
+        this.configService,
+        sourcePath,
+        hls1080Dir,
+        '1080p',
+        complexity.crf,
+        onHeartbeat,
+        'SLOW',
+      );
+
+      // 5. Upload 1080p segments
+      await this.uploadHLSDir(videoId, '1080p', hls1080Dir);
+
+      // 6. Update Master playlist with 1080p reference
+      const finalMasterManifest = this.buildMasterPlaylist();
+      const finalMasterKey = `vod/${videoId}/master.m3u8`;
+      const { url: finalMasterUrl } = await firstValueFrom<{ url: string }>(
+        this.storageService.upload({
+          filename: finalMasterKey,
+          data: Buffer.from(finalMasterManifest, 'utf-8'),
           bucket: this.bucket,
           mimeType: 'application/vnd.apple.mpegurl',
         }),
@@ -154,7 +194,7 @@ export class VodSlowLaneService implements OnModuleInit {
         crfUsed: complexity.crf,
         complexityScore: complexity.score,
         resolutions: ['480p', '720p', '1080p'],
-        hlsManifest: masterUrl,
+        hlsManifest: finalMasterUrl,
         ts: Date.now(),
       };
 
@@ -290,27 +330,6 @@ export class VodSlowLaneService implements OnModuleInit {
         error.stack,
       );
     }
-  }
-
-  /**
-   * Single-pass dual-resolution encode using -filter_complex split.
-   */
-  private async transcodeBothResolutions(
-    input: string,
-    hls720Dir: string,
-    hls1080Dir: string,
-    crf: number,
-    onHeartbeat?: () => Promise<void> | void,
-  ): Promise<void> {
-    await FfmpegUtils.transcodeDualResolution(
-      this.configService,
-      input,
-      hls720Dir,
-      hls1080Dir,
-      crf,
-      onHeartbeat,
-      'SLOW',
-    );
   }
 
   private async uploadHLSDir(
