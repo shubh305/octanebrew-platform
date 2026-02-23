@@ -76,7 +76,7 @@ signals:
 
 governance:
   # Maximum sustained CPU usage (percent) before self-throttling
-  max_cpu_percent: 85
+  max_cpu_percent: 100
   # Maximum memory usage in MB
   max_memory_mb: 900
   # Polling interval for resource checks (seconds)
