@@ -1,5 +1,6 @@
 """VTT Semantic signal — compiled regex pattern groups + window aggregation + negation filtering."""
 
+import asyncio
 import logging
 import re
 from pathlib import Path
