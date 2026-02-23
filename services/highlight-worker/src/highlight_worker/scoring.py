@@ -1,12 +1,13 @@
 """Scoring — per-second weighted scoring and qualification from signal outputs."""
 
+import asyncio
 import logging
 from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 
-def compute_scores(
+async def compute_scores(
     signal_outputs: dict[str, dict[int, float]],
     signal_weights: dict[str, float],
     duration_seconds: int,
@@ -39,6 +40,9 @@ def compute_scores(
 
         if total > 0.01:
             aggregate[sec] = {"total": round(total, 4), "sig_count": sig_count}
+            
+        if sec % 10000 == 0:
+            await asyncio.sleep(0)
 
     logger.info(
         f"Scoring: {len(aggregate)} seconds scored with temporal fusion"
@@ -46,7 +50,7 @@ def compute_scores(
     return aggregate
 
 
-def qualify_seconds(
+async def qualify_seconds(
     aggregate_scores: dict[int, dict[str, float]],
     threshold: float,
 ) -> dict[int, float]:
@@ -66,6 +70,9 @@ def qualify_seconds(
         if score >= threshold:
             if count >= 2 or score >= 0.3:
                 qualified[sec] = score
+        
+        if sec % 10000 == 0:
+            await asyncio.sleep(0)
 
     logger.info(
         f"Qualification: {len(qualified)}/{len(aggregate_scores)} seconds "

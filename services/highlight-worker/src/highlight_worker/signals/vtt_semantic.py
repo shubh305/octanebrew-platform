@@ -137,33 +137,52 @@ class VttSemanticSignal(BaseSignal):
 
         # ── Score each cue
         cue_scores: list[tuple[float, float, float]] = []
-        for start, end, text in cues:
+        
+        esc_ptr = 0
+        
+        for i, (start, end, text) in enumerate(cues):
             s = _score_text(text, repetition_boost, negation_filter)
 
             if escalation_boost and s > 0:
                 window_start = start - 2.0
-                for ps, pe, pt in cues:
-                    if window_start <= ps <= start and ESCALATION_RE.search(pt):
+                # Move esc_ptr forward to window_start
+                while esc_ptr < len(cues) and cues[esc_ptr][0] < window_start:
+                    esc_ptr += 1
+                
+                # Check from esc_ptr up to current cue
+                for k in range(esc_ptr, i):
+                    if ESCALATION_RE.search(cues[k][2]):
                         s = min(1.0, s + 0.2)
                         break
 
             if s > 0:
                 cue_scores.append((start, end, s))
+            
+            if i % 2000 == 0:
+                await asyncio.sleep(0)
 
         # ── Window aggregation: aggregate over window_seconds
         scores: dict[int, float] = {}
+        
+        right_ptr = 0
         for i, (start, end, score) in enumerate(cue_scores):
             window_end = start + window_seconds
-            cumulative = score
-            for j, (s2, e2, sc2) in enumerate(cue_scores):
-                if i != j and start <= s2 <= window_end:
-                    cumulative += sc2
+            
+            # Advance right_ptr to the end of the window
+            while right_ptr < len(cue_scores) and cue_scores[right_ptr][0] <= window_end:
+                right_ptr += 1
+            
+            # Window is cue_scores[i : right_ptr]
+            cumulative = sum(sc for _, _, sc in cue_scores[i : right_ptr])
 
             cumulative = min(1.0, cumulative)
             sec_start = int(start)
             sec_end = int(end)
             for sec in range(sec_start, sec_end + 1):
                 scores[sec] = max(scores.get(sec, 0), cumulative)
+                
+            if i % 1000 == 0:
+                await asyncio.sleep(0)
 
         logger.info(
             f"VttSemantic: {len(scores)} scored seconds from {len(cue_scores)} matching cues"

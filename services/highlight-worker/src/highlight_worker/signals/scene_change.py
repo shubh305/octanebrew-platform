@@ -56,43 +56,37 @@ class SceneChangeSignal(BaseSignal):
             stderr=asyncio.subprocess.PIPE,
         )
         
-        stderr_lines = []
+        scdet_re = re.compile(r"lavfi\.scd\.score:\s*(\d+\.?\d*).*?lavfi\.scd\.time:\s*(\d+\.?\d*)")
+        meany_re = re.compile(r"mean:\[(\d+)\s")
+        
+        frames: list[tuple[float, float, float]] = []
+        current_time = 0.0
+        current_score = 0.0
+
+        line_count = 0
         while True:
             line_bytes = await proc.stderr.readline()
             if not line_bytes:
                 break
             line = line_bytes.decode("utf-8", errors="replace")
-            stderr_lines.append(line)
-            await asyncio.sleep(0)
-
-        await proc.wait()
-        stderr = "".join(stderr_lines)
-
-        # Parse output like:
-        # [scdet @ ...] lavfi.scd.score: 0.810, lavfi.scd.time: 0.0333333
-        # [Parsed_showinfo_1 @ ...] ... mean:[104 123 137] ...
-        
-        scdet_re = re.compile(r"lavfi\.scd\.score:\s*(\d+\.?\d*).*?lavfi\.scd\.time:\s*(\d+\.?\d*)")
-        meany_re = re.compile(r"mean:\[(\d+)\s")
-
-        frames: list[tuple[float, float, float]] = []
-        
-        current_time = 0.0
-        current_score = 0.0
-
-        for line in stderr.split("\n"):
+            
             scd_m = scdet_re.search(line)
             if scd_m:
                 current_score = float(scd_m.group(1))
                 current_time = float(scd_m.group(2))
-                continue
+            else:
+                my_m = meany_re.search(line)
+                if my_m:
+                    mean_y = float(my_m.group(1))
+                    if current_time > 0:
+                        frames.append((current_time, current_score, mean_y))
+                        current_time = -1.0
             
-            my_m = meany_re.search(line)
-            if my_m:
-                mean_y = float(my_m.group(1))
-                if current_time > 0:
-                    frames.append((current_time, current_score, mean_y))
-                    current_time = -1.0
+            line_count += 1
+            if line_count % 500 == 0:
+                await asyncio.sleep(0)
+
+        await proc.wait()
 
         if not frames:
             logger.info("SceneChange: no frames with scene scores detected")
@@ -143,6 +137,9 @@ class SceneChangeSignal(BaseSignal):
                 second = int(pts_time)
                 scores[second] = max(scores.get(second, 0), event_score)
                 last_time = pts_time
+            
+            if i % 5000 == 0:
+                await asyncio.sleep(0)
 
             prev_mean_y = mean_y
 

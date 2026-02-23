@@ -149,7 +149,7 @@ async def run_highlight_job(payload: dict) -> dict:
 
     # --- Identify Candidate Windows for OCR ---
     candidate_seconds = set()
-    initial_scores = compute_scores(signal_outputs, signal_weights, int(duration))
+    initial_scores = await compute_scores(signal_outputs, signal_weights, int(duration))
     # Collect all seconds > 0.1 score + buffer ±5s
     for sec, data in initial_scores.items():
         if data["total"] >= 0.1:
@@ -175,8 +175,8 @@ async def run_highlight_job(payload: dict) -> dict:
             logger.error(f"Pass 2: OCR failed: {e}")
 
     # 6. Score and qualify
-    aggregate = compute_scores(signal_outputs, signal_weights, int(duration))
-    qualified = qualify_seconds(
+    aggregate = await compute_scores(signal_outputs, signal_weights, int(duration))
+    qualified = await qualify_seconds(
         aggregate, scoring_cfg.get("qualification_threshold", 0.35)
     )
 

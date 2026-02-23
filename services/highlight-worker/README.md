@@ -135,10 +135,10 @@ The service uses a deterministic, multi-modal signal analysis algorithm to pinpo
 
 | Signal Module | Base Weight | Data Source | Detection Mechanism |
 |---------------|-------------|-------------|---------------------|
-| **Audio Spike** | 0.30 | 480p proxy | Passes audio through FFmpeg `astats` filter. Calculates the RMS (Root Mean Square) energy per second. Spikes above the rolling average denote loud moments (cheering, screaming). |
-| **Scene Change** | 0.25 | 480p proxy | Uses FFmpeg `select='gt(scene,0.4)'` filter. Generates frame-difference scores. High scores correlate with rapid camera movement or dramatic visual transitions. |
-| **Chat Spike** | 0.20 | `chat.json` | Groups historical chat messages into discrete time buckets. Identifies moments where message frequency exceeds the standard deviation (z-score threshold) of the stream. |
-| **VTT Semantic** | 0.10 | `en.vtt` | Scans the WebVTT transcript for emotional/impact keywords (e.g., "wow", "crazy", "win") and named entities. |
+| **Audio Spike** | 0.30 | 480p proxy | Optimized **O(N)** sliding window RMS energy detection. Spikes above the adaptive rolling z-score denote loud moments (cheering, screaming). |
+| **Scene Change** | 0.25 | 480p proxy | On-the-fly parsing of FFmpeg `scdet` scores. High scores correlate with rapid camera movement or dramatic visual transitions. |
+| **Chat Spike** | 0.20 | `chat.json` | Groups historical chat messages into discrete time buckets. Identifies moments where message frequency exceeds the z-score threshold. |
+| **VTT Semantic** | 0.10 | `en.vtt` | Optimized **O(N)** keyword and entity detection. Scans the WebVTT transcript for emotional/impact keywords (e.g., "wow", "crazy", "win"). |
 | **OCR Keyword** | 0.15 | 480p proxy | Extracts 1 FPS image frames, passing them through Tesseract OCR to detect on-screen text events ("Victory", "Goal"). |
 
 ### 2. The Scoring Formula
@@ -196,9 +196,10 @@ Key tunable parameters:
 
 The service enforces strict safety mechanisms to ensure it never crashes the host machine or hallucinates data:
 
-### 1. Hardware Throttling
+### 1. Hardware Throttling & Stability
 - **Container Limit:** Hardcapped at 1 CPU core, 1 GB RAM (via Docker).
 - **Self-Throttle:** A `governance.py` daemon thread polls `psutil.cpu_percent()` every 10 seconds. If the CPU exceeds `MAX_CPU_PERCENT` (default 85%), the worker sleeps its processing loop to cool the system down.
+- **Async Processing:** All algorithmic bottlenecks (Rolling Z-Score, Window Aggregation, Consolidation) use **O(N) optimized sliding windows** and explicitly yield to the event loop. This ensures consistent Kafka heartbeats even during 10+ hour VOD analysis.
 - **Process Priority:** Internal FFmpeg subprocesses are invoked with `nice -n 10` to yield to essential host processes.
 - **Analysis Target:** All visual analysis runs exclusively against the lightweight 480p Fast Lane proxy, avoiding the massive memory overhead of decoding 1080p source files.
 

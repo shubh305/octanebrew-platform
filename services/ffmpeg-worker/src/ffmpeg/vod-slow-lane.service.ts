@@ -206,7 +206,7 @@ export class VodSlowLaneService implements OnModuleInit {
           '-i',
           sourcePath,
           '-vf',
-          `fps=1/${params.interval},scale=160:90,tile=${params.cols}x=${params.rows}`,
+          `fps=1/${params.interval},scale=160:90,tile=${params.cols}x${params.rows}`,
           '-frames:v',
           '1',
           '-q:v',

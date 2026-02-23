@@ -1,5 +1,6 @@
 """Chat Spike detection via chat.json message bucketing."""
 
+import asyncio
 import json
 import logging
 import statistics
@@ -40,10 +41,12 @@ class ChatSpikeSignal(BaseSignal):
 
         # Bucket messages by time offset
         buckets: dict[int, int] = {}
-        for msg in messages:
+        for i, msg in enumerate(messages):
             ts = msg.get("offset_seconds") or msg.get("timestamp_offset", 0)
             bucket = int(ts) // bucket_size * bucket_size
             buckets[bucket] = buckets.get(bucket, 0) + 1
+            if i % 10000 == 0:
+                await asyncio.sleep(0)
 
         if not buckets:
             return {}
@@ -57,12 +60,15 @@ class ChatSpikeSignal(BaseSignal):
         scores: dict[int, float] = {}
         max_count = max(counts) if counts else 1
 
-        for bucket_start, count in buckets.items():
+        for i, (bucket_start, count) in enumerate(buckets.items()):
             if count > threshold:
                 # Spread score across seconds in the bucket
                 score = min(1.0, count / max_count)
                 for sec in range(bucket_start, bucket_start + bucket_size):
                     scores[sec] = score
+            
+            if i % 2000 == 0:
+                await asyncio.sleep(0)
 
         logger.info(
             f"ChatSpike: {len(scores)} seconds above threshold "
