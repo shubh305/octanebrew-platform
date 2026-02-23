@@ -55,9 +55,9 @@ async def consume():
         "enable_auto_commit": False,
         "auto_offset_reset": "earliest",
         "value_deserializer": lambda m: json.loads(m.decode("utf-8")),
-        "max_poll_interval_ms": settings.JOB_TIMEOUT_SECONDS * 1000 + 120000,
-        "session_timeout_ms": 60000,
-        "heartbeat_interval_ms": 10000,
+        "max_poll_interval_ms": 10800000,
+        "session_timeout_ms": 180000,
+        "heartbeat_interval_ms": 40000,
     }
 
     producer_kwargs = {

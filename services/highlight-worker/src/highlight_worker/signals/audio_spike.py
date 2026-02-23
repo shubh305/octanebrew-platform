@@ -87,15 +87,19 @@ class AudioSpikeSignal(BaseSignal):
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr_data = await proc.communicate()
-        stderr = stderr_data.decode("utf-8", errors="replace")
-
+        
         results: list[tuple[float, float, float]] = []
         current_time = 0.0
         current_rms: float | None = None
         current_peak: float | None = None
 
-        for line in stderr.split("\n"):
+        while True:
+            line_bytes = await proc.stderr.readline()
+            if not line_bytes:
+                break
+            
+            line = line_bytes.decode("utf-8", errors="replace")
+            
             # Looking for: [Parsed_ametadata_1 @ ...] lavfi.astats.Overall.RMS_level=-34.2
             m1 = _RMS_RE.search(line)
             if m1:
@@ -111,6 +115,11 @@ class AudioSpikeSignal(BaseSignal):
                 current_time += hop
                 current_rms = None
                 current_peak = None
+            
+            # Yield to event loop to allow heartbeats
+            await asyncio.sleep(0)
+
+        await proc.wait()
 
         logger.info(
             f"AudioSpike: parsed {len(results)} continuous ametadata blocks "

@@ -37,7 +37,7 @@ async function bootstrap() {
         consumer: {
           groupId,
           maxPollInterval: 3600000,
-          sessionTimeout: 300000,
+          sessionTimeout: 600000,
           rebalanceTimeout: 3600000,
         },
         subscribe: {

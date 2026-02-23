@@ -7,6 +7,8 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
+export type SlowLaneStep = '720p' | '1080p' | 'sprites';
+
 export interface VodTranscodePayload {
   videoId: string;
   ownerId: string;
@@ -16,6 +18,7 @@ export interface VodTranscodePayload {
   originalFilename: string;
   bucket?: string;
   ts: number;
+  step?: SlowLaneStep;
 }
 
 export class FfmpegUtils {

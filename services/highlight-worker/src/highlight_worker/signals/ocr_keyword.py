@@ -232,10 +232,20 @@ class OCRKeywordSignal(BaseSignal):
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await proc.communicate()
+            
+            stderr_lines = []
+            while True:
+                line_bytes = await proc.stderr.readline()
+                if not line_bytes:
+                    break
+                stderr_lines.append(line_bytes.decode("utf-8", errors="replace"))
+                await asyncio.sleep(0)
+
+            await proc.wait()
+            stderr_str = "".join(stderr_lines)
 
             if proc.returncode != 0:
-                logger.warning(f"OCR: FFmpeg extraction failed: {stderr.decode()[-300:]}")
+                logger.warning(f"OCR: FFmpeg extraction failed: {stderr_str[-300:]}")
                 return {}
 
             frame_files = sorted(Path(frame_dir).glob("frame_*.jpg"))

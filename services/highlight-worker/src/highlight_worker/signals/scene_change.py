@@ -55,8 +55,18 @@ class SceneChangeSignal(BaseSignal):
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr_data = await proc.communicate()
-        stderr = stderr_data.decode("utf-8", errors="replace")
+        
+        stderr_lines = []
+        while True:
+            line_bytes = await proc.stderr.readline()
+            if not line_bytes:
+                break
+            line = line_bytes.decode("utf-8", errors="replace")
+            stderr_lines.append(line)
+            await asyncio.sleep(0)
+
+        await proc.wait()
+        stderr = "".join(stderr_lines)
 
         # Parse output like:
         # [scdet @ ...] lavfi.scd.score: 0.810, lavfi.scd.time: 0.0333333

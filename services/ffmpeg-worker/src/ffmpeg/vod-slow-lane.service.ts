@@ -5,9 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import * as microservices from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
 import { ComplexityAnalyzerService } from './complexity-analyzer.service';
-import { FfmpegUtils, VodTranscodePayload } from './ffmpeg-utils';
-
-// Sprite helpers
+import { FfmpegUtils, VodTranscodePayload, SlowLaneStep } from './ffmpeg-utils';
 
 function computeSpriteParams(durationSeconds: number): {
   interval: number;
@@ -93,273 +91,224 @@ export class VodSlowLaneService implements OnModuleInit {
     payload: VodTranscodePayload,
     onHeartbeat?: () => Promise<void> | void,
   ) {
-    const { videoId, storagePath, originalFilename } = payload;
-    const jobDir = path.join(this.workDir, `${videoId}-slow`);
-
-    this.logger.log(`[SLOW] Starting slow-lane for ${videoId}`);
+    const step = payload.step || '720p';
+    this.logger.log(
+      `[SLOW] Routing to step: ${String(step)} for video ${payload.videoId}`,
+    );
 
     try {
-      if (!fs.existsSync(jobDir)) {
-        fs.mkdirSync(jobDir, { recursive: true });
+      if (step === '720p' || step === '1080p') {
+        await this.runTranscodeStep(payload, step, onHeartbeat);
+      } else if (step === 'sprites') {
+        await this.runSpritesStep(payload, onHeartbeat);
+      } else {
+        this.logger.error(`Unknown slow-lane step: ${String(step)}`);
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `[SLOW] Step ${String(step)} failed for ${payload.videoId}: ${msg}`,
+      );
+      throw err;
+    }
+  }
 
-      // 1. Download source
-      const sourceExt = path.extname(originalFilename) || '.mp4';
-      const sourcePath = path.join(jobDir, `source${sourceExt}`);
-      await FfmpegUtils.downloadFromStorage(
+  /**
+   * Universal transcode step for 720p and 1080p
+   */
+  private async runTranscodeStep(
+    payload: VodTranscodePayload,
+    res: '720p' | '1080p',
+    onHeartbeat?: () => Promise<void> | void,
+  ) {
+    const { videoId } = payload;
+    const { jobDir, sourcePath } = await this.prepareWorkDir(payload, res);
+
+    const complexity = await this.complexityAnalyzer.analyze(sourcePath);
+    const slowPreset =
+      this.configService.get<string>('SLOW_LANE_PRESET') || 'superfast';
+
+    // CRF logic: 720p gets +1 penalty for speed/size balance in slow lane
+    const crfValue = res === '720p' ? complexity.crf + 1 : complexity.crf;
+    const resDir = path.join(jobDir, res);
+
+    if (!fs.existsSync(resDir)) {
+      fs.mkdirSync(resDir, { recursive: true });
+    }
+
+    await FfmpegUtils.transcodeSingleResolution(
+      this.configService,
+      sourcePath,
+      resDir,
+      res,
+      crfValue,
+      slowPreset,
+      onHeartbeat,
+      `SLOW-${res.toUpperCase()}`,
+    );
+
+    await this.uploadHLSDir(videoId, res, resDir);
+    const masterUrl = await this.uploadMasterPlaylist(videoId);
+
+    // Progression logic
+    const nextStep: SlowLaneStep | null = res === '720p' ? '1080p' : 'sprites';
+    const resolutions =
+      res === '720p' ? ['480p', '720p'] : ['480p', '720p', '1080p'];
+
+    this.logger.log(
+      `[SLOW-${res}] Step complete. Emitting video.complete and next step (${nextStep}).`,
+    );
+
+    await firstValueFrom(
+      this.apiClient.emit('video.complete', {
+        videoId,
+        crfUsed: crfValue,
+        complexityScore: complexity.score,
+        resolutions,
+        hlsManifest: masterUrl,
+        ts: Date.now(),
+      }),
+    );
+
+    if (nextStep) {
+      await firstValueFrom(
+        this.apiClient.emit('vod.transcode.slow', {
+          ...payload,
+          step: nextStep,
+        }),
+      );
+    }
+
+    FfmpegUtils.cleanupDir(jobDir, `SLOW-${res}`);
+  }
+
+  private async runSpritesStep(
+    payload: VodTranscodePayload,
+    onHeartbeat?: () => Promise<void> | void,
+  ) {
+    const { videoId } = payload;
+    const { jobDir, sourcePath } = await this.prepareWorkDir(
+      payload,
+      'sprites',
+    );
+
+    const durationSeconds = await FfmpegUtils.getVideoDuration(
+      this.configService,
+    )(sourcePath);
+    if (durationSeconds > 0) {
+      const params = computeSpriteParams(durationSeconds);
+      const spriteLocalPath = path.join(jobDir, 'sprites.jpg');
+
+      await FfmpegUtils.runFFmpeg(
         this.configService,
-        payload.bucket || this.bucket,
-        storagePath,
-        sourcePath,
-      );
-
-      // 2. Run complexity analysis
-      const complexity = await this.complexityAnalyzer.analyze(sourcePath);
-      const duration = await FfmpegUtils.getVideoDuration(this.configService)(
-        sourcePath,
-      );
-      const slowPreset =
-        this.configService.get<string>('SLOW_LANE_PRESET') || 'superfast';
-
-      this.logger.log(
-        `[SLOW] Complexity: score=${complexity.score}, CRF=${complexity.crf}, Duration: ${duration}s, Preset: ${slowPreset}`,
-      );
-
-      // 3. Transcode 720p first (sequential pipeline)
-      const hls720Dir = path.join(jobDir, '720p');
-      fs.mkdirSync(hls720Dir, { recursive: true });
-      await FfmpegUtils.transcodeSingleResolution(
-        this.configService,
-        sourcePath,
-        hls720Dir,
-        '720p',
-        complexity.crf + 1,
-        slowPreset,
+        [
+          '-y',
+          '-i',
+          sourcePath,
+          '-vf',
+          `fps=1/${params.interval},scale=160:90,tile=${params.cols}x=${params.rows}`,
+          '-frames:v',
+          '1',
+          '-q:v',
+          '5',
+          spriteLocalPath,
+        ],
+        'SPRITES',
         onHeartbeat,
-        'SLOW',
       );
 
-      // Upload and Emit early 720p
-      await this.uploadHLSDir(videoId, '720p', hls720Dir);
-      const masterManifest = this.buildMasterPlaylist();
-      const masterKey = `vod/${videoId}/master.m3u8`;
-      const { url: earlyMasterUrl } = await firstValueFrom<{ url: string }>(
+      const spriteKey = `vod/${videoId}/sprites/sprites.jpg`;
+      const vttKey = `vod/${videoId}/sprites/thumbnails.vtt`;
+
+      await firstValueFrom(
         this.storageService.upload({
-          filename: masterKey,
-          data: Buffer.from(masterManifest, 'utf-8'),
+          filename: spriteKey,
+          data: fs.readFileSync(spriteLocalPath),
           bucket: this.bucket,
-          mimeType: 'application/vnd.apple.mpegurl',
+          mimeType: 'image/jpeg',
         }),
       );
 
-      // Emit early complete so the frontend triggers "Playable" state
+      await firstValueFrom(
+        this.storageService.upload({
+          filename: vttKey,
+          data: Buffer.from(
+            generateVTT('sprites.jpg', durationSeconds, params),
+            'utf-8',
+          ),
+          bucket: this.bucket,
+          mimeType: 'text/vtt',
+        }),
+      );
+
       this.logger.log(
-        `[SLOW] Emitting early video.complete for ${videoId} @ 720p`,
+        `[SLOW-SPRITES] Sprites complete. Emitting video.sprites.complete.`,
       );
       await firstValueFrom(
-        this.apiClient.emit('video.complete', {
+        this.apiClient.emit('video.sprites.complete', {
           videoId,
-          crfUsed: complexity.crf + 1,
-          complexityScore: complexity.score,
-          resolutions: ['480p', '720p'],
-          hlsManifest: earlyMasterUrl,
+          spritePath: spriteKey,
+          vttPath: vttKey,
+          frameCount: params.frameCount,
+          interval: params.interval,
+          cols: params.cols,
+          rows: params.rows,
           ts: Date.now(),
         }),
       );
-
-      // 4. Transcode 1080p next (sequential pipeline)
-      const hls1080Dir = path.join(jobDir, '1080p');
-      fs.mkdirSync(hls1080Dir, { recursive: true });
-      await FfmpegUtils.transcodeSingleResolution(
-        this.configService,
-        sourcePath,
-        hls1080Dir,
-        '1080p',
-        complexity.crf,
-        slowPreset,
-        onHeartbeat,
-        'SLOW',
-      );
-
-      // 5. Upload 1080p segments
-      await this.uploadHLSDir(videoId, '1080p', hls1080Dir);
-
-      // 6. Update Master playlist with 1080p reference
-      const finalMasterManifest = this.buildMasterPlaylist();
-      const finalMasterKey = `vod/${videoId}/master.m3u8`;
-      const { url: finalMasterUrl } = await firstValueFrom<{ url: string }>(
-        this.storageService.upload({
-          filename: finalMasterKey,
-          data: Buffer.from(finalMasterManifest, 'utf-8'),
-          bucket: this.bucket,
-          mimeType: 'application/vnd.apple.mpegurl',
-        }),
-      );
-
-      // 7. Emit complete
-      const completePayload = {
-        videoId,
-        crfUsed: complexity.crf,
-        complexityScore: complexity.score,
-        resolutions: ['480p', '720p', '1080p'],
-        hlsManifest: finalMasterUrl,
-        ts: Date.now(),
-      };
-
-      this.logger.log(`[SLOW] Emitting video.complete for ${videoId}`);
-      await firstValueFrom(
-        this.apiClient.emit('video.complete', completePayload),
-      );
-
-      // Sprite generation
-      try {
-        this.logger.log(
-          `[SLOW][SPRITES] Starting sprite generation for ${videoId}`,
-        );
-
-        const durationSeconds = await FfmpegUtils.getVideoDuration(
-          this.configService,
-        )(sourcePath);
-
-        if (durationSeconds > 0) {
-          const params = computeSpriteParams(durationSeconds);
-          const { interval, cols, rows, frameCount } = params;
-          const spriteLocalPath = path.join(jobDir, 'sprites.jpg');
-
-          // Generate sprite sheet using the local source file
-          await FfmpegUtils.runFFmpeg(
-            this.configService,
-            [
-              '-y',
-              '-i',
-              sourcePath,
-              '-vf',
-              `fps=1/${interval},scale=160:90,tile=${cols}x${rows}`,
-              '-frames:v',
-              '1',
-              '-q:v',
-              '5',
-              spriteLocalPath,
-            ],
-            'SPRITES',
-          );
-
-          const cdnSpriteUrl = 'sprites.jpg';
-
-          const vttContent = generateVTT(cdnSpriteUrl, durationSeconds, params);
-
-          // Upload sprite JPG
-          const spriteKey = `vod/${videoId}/sprites/sprites.jpg`;
-          await firstValueFrom<{ url: string }>(
-            this.storageService.upload({
-              filename: spriteKey,
-              data: fs.readFileSync(spriteLocalPath),
-              bucket: this.bucket,
-              mimeType: 'image/jpeg',
-            }),
-          );
-
-          // Upload VTT
-          const vttKey = `vod/${videoId}/sprites/thumbnails.vtt`;
-          await firstValueFrom<{ url: string }>(
-            this.storageService.upload({
-              filename: vttKey,
-              data: Buffer.from(vttContent, 'utf-8'),
-              bucket: this.bucket,
-              mimeType: 'text/vtt',
-            }),
-          );
-
-          this.logger.log(
-            `[SLOW][SPRITES] Sprite sheet uploaded for ${videoId} (${frameCount} frames, ${interval}s interval)`,
-          );
-
-          // Emit completion
-          await firstValueFrom(
-            this.apiClient.emit('video.sprites.complete', {
-              videoId,
-              spritePath: spriteKey,
-              vttPath: vttKey,
-              frameCount,
-              interval,
-              cols,
-              rows,
-              ts: Date.now(),
-            }),
-          );
-        } else {
-          this.logger.warn(
-            `[SLOW][SPRITES] Duration 0 for ${videoId} — skipping sprite generation`,
-          );
-          await firstValueFrom(
-            this.apiClient.emit('video.sprites.complete', {
-              videoId,
-              failed: true,
-              reason: 'Could not determine video duration',
-              ts: Date.now(),
-            }),
-          );
-        }
-      } catch (spriteErr) {
-        const msg =
-          spriteErr instanceof Error ? spriteErr.message : String(spriteErr);
-        this.logger.warn(
-          `[SLOW][SPRITES] Sprite generation failed for ${videoId}: ${msg}`,
-        );
-        // Best-effort emit of failure
-        try {
-          await firstValueFrom(
-            this.apiClient.emit('video.sprites.complete', {
-              videoId,
-              failed: true,
-              reason: msg,
-              ts: Date.now(),
-            }),
-          );
-        } catch {
-          // ignore
-        }
-      }
-
-      // Delete the original source recording from the local MinIO mount
-      // TODO : Re-enable this after testing
-      // FfmpegUtils.deleteFromStorage(
-      //   this.configService,
-      //   payload.bucket || this.bucket,
-      //   storagePath,
-      //   'SLOW',
-      // );
-
-      FfmpegUtils.cleanupDir(jobDir, 'SLOW');
-    } catch (err) {
-      const error = err as Error;
-      this.logger.error(
-        `[SLOW] Processing failed for ${videoId}: ${error.message}`,
-        error.stack,
-      );
     }
+
+    FfmpegUtils.cleanupDir(jobDir, 'SLOW-SPRITES');
+  }
+
+  private async prepareWorkDir(payload: VodTranscodePayload, step: string) {
+    const jobDir = path.join(this.workDir, `${payload.videoId}-${step}`);
+    if (!fs.existsSync(jobDir)) {
+      fs.mkdirSync(jobDir, { recursive: true });
+    }
+
+    const sourceExt = path.extname(payload.originalFilename) || '.mp4';
+    const sourcePath = path.join(jobDir, `source${sourceExt}`);
+
+    await FfmpegUtils.downloadFromStorage(
+      this.configService,
+      payload.bucket || this.bucket,
+      payload.storagePath,
+      sourcePath,
+    );
+
+    return { jobDir, sourcePath };
+  }
+
+  private async uploadMasterPlaylist(videoId: string): Promise<string> {
+    const masterManifest = this.buildMasterPlaylist();
+    const masterKey = `vod/${videoId}/master.m3u8`;
+    const { url } = await firstValueFrom(
+      this.storageService.upload({
+        filename: masterKey,
+        data: Buffer.from(masterManifest, 'utf-8'),
+        bucket: this.bucket,
+        mimeType: 'application/vnd.apple.mpegurl',
+      }),
+    );
+    return url;
   }
 
   private async uploadHLSDir(
     videoId: string,
     resLabel: string,
     hlsDir: string,
-  ): Promise<void> {
-    const files = fs.readdirSync(hlsDir);
-
-    for (const file of files) {
+  ) {
+    for (const file of fs.readdirSync(hlsDir)) {
       const filePath = path.join(hlsDir, file);
       const s3Key = `vod/${videoId}/${resLabel}/${file}`;
-      const buffer = fs.readFileSync(filePath);
-
       const mimeType = file.endsWith('.m3u8')
         ? 'application/vnd.apple.mpegurl'
         : 'video/MP2T';
-
-      await firstValueFrom<{ url: string }>(
+      await firstValueFrom(
         this.storageService.upload({
           filename: s3Key,
-          data: buffer,
+          data: fs.readFileSync(filePath),
           bucket: this.bucket,
           mimeType,
         }),
@@ -384,7 +333,6 @@ export class VodSlowLaneService implements OnModuleInit {
       '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
       '1080p/playlist.m3u8',
     ];
-
     return lines.join('\n') + '\n';
   }
 }
