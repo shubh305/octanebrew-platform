@@ -1,4 +1,5 @@
 import asyncio
+import time
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -18,6 +19,14 @@ async def lifespan(app: FastAPI):
     db_manager = ClickHouseManager()
     app.state.db_manager = db_manager
     
+    async def health_signal():
+        while True:
+            with open("/tmp/healthy", "w") as f:
+                f.write(str(time.time()))
+            await asyncio.sleep(15)
+            
+    health_task = asyncio.create_task(health_signal())
+    
     # Start Kafka Consumer in the background
     consumer_task = asyncio.create_task(consume(db_manager))
     logger.info("Background consumer task started.")
@@ -26,6 +35,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down...")
+    health_task.cancel()
     consumer_task.cancel()
     try:
         await consumer_task
