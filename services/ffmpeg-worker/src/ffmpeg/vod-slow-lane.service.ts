@@ -155,20 +155,23 @@ export class VodSlowLaneService implements OnModuleInit {
     const resolutions =
       res === '720p' ? ['480p', '720p'] : ['480p', '720p', '1080p'];
 
-    this.logger.log(
-      `[SLOW-${res}] Step complete. Emitting video.complete and next step (${nextStep}).`,
-    );
-
-    await firstValueFrom(
-      this.apiClient.emit('video.complete', {
-        videoId,
-        crfUsed: crfValue,
-        complexityScore: complexity.score,
-        resolutions,
-        hlsManifest: masterUrl,
-        ts: Date.now(),
-      }),
-    );
+    if (res === '1080p') {
+      this.logger.log(`[SLOW-${res}] Step complete. Emitting video.complete.`);
+      await firstValueFrom(
+        this.apiClient.emit('video.complete', {
+          videoId,
+          crfUsed: crfValue,
+          complexityScore: complexity.score,
+          resolutions,
+          hlsManifest: masterUrl,
+          ts: Date.now(),
+        }),
+      );
+    } else {
+      this.logger.log(
+        `[SLOW-${res}] Step complete. Transitioning to next step (${nextStep}).`,
+      );
+    }
 
     if (nextStep) {
       await firstValueFrom(

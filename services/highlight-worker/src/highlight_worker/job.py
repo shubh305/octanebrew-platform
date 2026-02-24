@@ -108,10 +108,8 @@ async def run_highlight_job(payload: dict) -> dict:
                 except Exception as e:
                     logger.warning(f"Failed to download source {source_storage}: {e}")
                     source_path = proxy_path
-                    warnings.append("Source video unavailable, using proxy for extraction")
         else:
             source_path = proxy_path
-            warnings.append("Source video unavailable, using proxy for extraction")
 
     # 4. Get video duration
     duration = await _get_duration(proxy_path)
