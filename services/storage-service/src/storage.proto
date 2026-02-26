@@ -5,6 +5,7 @@ package storage;
 service StorageService {
   rpc Upload (UploadRequest) returns (UploadResponse);
   rpc GetPresignedUrl (GetPresignedUrlRequest) returns (GetPresignedUrlResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
 }
 
 message UploadRequest {
@@ -26,4 +27,15 @@ message GetPresignedUrlRequest {
 
 message GetPresignedUrlResponse {
   string url = 1;
+}
+
+message DeleteRequest {
+  string bucket = 1;
+  string key = 2;
+  bool isFolder = 3;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  int32 deletedCount = 2;
 }

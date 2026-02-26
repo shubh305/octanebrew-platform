@@ -7,6 +7,9 @@ import {
   CreateBucketCommand,
   GetObjectCommand,
   PutBucketPolicyCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -155,5 +158,63 @@ export class S3Service {
     });
 
     return signedUrl;
+  }
+
+  async delete(
+    bucket: string,
+    key: string,
+    isFolder: boolean = false,
+  ): Promise<{ success: boolean; deletedCount: number }> {
+    try {
+      if (!isFolder) {
+        this.logger.log(`Deleting file: ${key} from bucket: ${bucket}`);
+        await this.s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          }),
+        );
+        return { success: true, deletedCount: 1 };
+      }
+
+      // Folder deletion (prefix-based)
+      this.logger.log(`Deleting folder/prefix: ${key} from bucket: ${bucket}`);
+      let deletedCount = 0;
+      let continuationToken: string | undefined = undefined;
+
+      do {
+        const listCommand = new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: key.endsWith("/") ? key : `${key}/`,
+          ContinuationToken: continuationToken,
+        });
+
+        const listResponse = await this.s3Client.send(listCommand);
+
+        if (listResponse.Contents && listResponse.Contents.length > 0) {
+          const deleteParams = {
+            Bucket: bucket,
+            Delete: {
+              Objects: listResponse.Contents.map((obj) => ({ Key: obj.Key })),
+            },
+          };
+
+          await this.s3Client.send(new DeleteObjectsCommand(deleteParams));
+          deletedCount += listResponse.Contents.length;
+        }
+
+        continuationToken = listResponse.NextContinuationToken;
+      } while (continuationToken);
+
+      this.logger.log(
+        `Successfully deleted ${deletedCount} objects with prefix: ${key}`,
+      );
+      return { success: true, deletedCount };
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete ${isFolder ? "folder" : "file"} ${key} from ${bucket}: ${error.message}`,
+      );
+      return { success: false, deletedCount: 0 };
+    }
   }
 }

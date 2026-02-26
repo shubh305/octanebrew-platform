@@ -56,4 +56,16 @@ export class StorageController {
     );
     return { url };
   }
+
+  @GrpcMethod("StorageService", "Delete")
+  async delete(data: {
+    bucket: string;
+    key: string;
+    isFolder: boolean;
+  }): Promise<{ success: boolean; deletedCount: number }> {
+    this.logger.log(
+      `Received delete request for ${data.key} (isFolder: ${data.isFolder}) in bucket ${data.bucket}`,
+    );
+    return this.s3Service.delete(data.bucket, data.key, data.isFolder);
+  }
 }
