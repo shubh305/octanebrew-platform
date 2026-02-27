@@ -18,7 +18,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy application source
 COPY README.md ./
 COPY src ./src
-COPY config ./config
 # COPY workers ./workers
 
 # Install project
