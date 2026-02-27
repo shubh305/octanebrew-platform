@@ -70,6 +70,7 @@ Each service in the `./services` directory serves a specific architectural role 
 | **Analytics*** | [`/analytics`](./services/analytics/README.md) | ClickHouse-backed event telemetry warehouse. | ClickHouse, KafkaJS |
 | **Compute** | [`/ffmpeg-worker`](./services/ffmpeg-worker/README.md) | Headless FFmpeg transcoding & worker mesh. | FFmpeg, NestJS, Kafka |
 | **Highlights** | [`/highlight-worker`](./services/highlight-worker/README.md) | CPU-optimized media signal extractor and AI summarizer. | Python, FFmpeg, Gemini |
+| **Catalyst** | [`/catalyst`](./services/catalyst/README.md) | Product launch intelligence spoke (Conduit editor slash commands). | FastAPI, PRAW, pandas |
 
 ---
 

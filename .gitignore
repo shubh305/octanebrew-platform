@@ -144,11 +144,13 @@ vite.config.ts.timestamp-*
 
 # Test files
 prd*
+**/migrations/
 
 # Media Data
 media_data/
 
 # Upcoming Services
+services/catalyst/workers/
 
 # Misc
 /docs

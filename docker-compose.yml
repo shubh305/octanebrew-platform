@@ -763,6 +763,49 @@ services:
           memory: 6G
 
 
+  # --- CATALYST SPOKE ---
+  catalyst:
+    build:
+      context: ./services/catalyst
+      dockerfile: Dockerfile
+    container_name: catalyst
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - ES_HOST=${ES_HOST}
+      - ELASTIC_USER=${ELASTIC_USER}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - REDIS_URL=${REDIS_URL}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_SASL_USER=${KAFKA_BROKER_USER}
+      - KAFKA_SASL_PASS=${KAFKA_BROKER_PASS}
+      - INTELLIGENCE_SVC_URL=${INTELLIGENCE_SVC_URL}
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+    networks:
+      - octane-net
+    depends_on:
+      - postgres
+      - elasticsearch
+      - redis
+      - kafka
+      - intelligence-svc
+    volumes:
+      - ./services/catalyst:/app
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; req = urllib.request.Request('http://localhost:8002/health', headers={'X-API-KEY': os.environ.get('SERVICE_API_KEY', '')}); urllib.request.urlopen(req)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    #extra_hosts:
+    #  - "broker.octanebrew.dev:${BROKER_IP}"
+    #  - "elastic.octanebrew.dev:${ELASTIC_IP}"
+
 networks:
   octane-net:
     name: octane-net
